@@ -1,0 +1,24 @@
+{
+  "name": "com.kott.scopes",
+  "displayName": "Kott Scopes",
+  "unity": "6000.0",
+  "keywords": [
+    "core"
+  ],
+  "version": "1.0.0",
+  "description": "Advanced game state management.",
+  "author": {
+    "name": "Paul Kloetzing",
+    "email": "kloetzing.paul@gmail.com"
+  },
+  "contributors": [
+    "Paul Kloetzing"
+  ],
+  "licensesUrl": "",
+  "changelogUrl": "",
+  "documentationUrl": "",
+  "dependencies": {
+    "com.kott.utilities": "1.0.0",
+    "com.unity.addressables": "2.7.4"
+  }
+}
