@@ -1,14 +1,13 @@
+using Kott.Utilities.Addressables;
+using Kott.Utilities.Progress;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
@@ -52,33 +51,42 @@ namespace Kott.Scopes
             }
         }
 
-        public static IEnumerator BeginScope(Scope scope, IProgress<ScopeProgress> progress)
+        public static IEnumerator InitializeManagers(IList<Manager> managers, IProgress<ProgressReport> progress)
         {
-            ScopeProgress progressData = new ScopeProgress();
-            progressData.Info = "Begin Scope";
-            progressData.Progress = 0f;
-            progress.Report(progressData);
+            if (managers == null || managers.Count == 0) yield break;
 
-            var subProgress = new MultiScopeProgress(progress);
+            SubProgress subProgress = new(progress);
+            subProgress.Scale = 1f / managers.Count;
 
-            for (int i = 0; i < scope.Managers.Length; i++)
+            for (int i = 0; i < managers.Count; i++)
             {
-                Manager manager = scope.Managers[i];
+                Manager manager = managers[i];
                 _managers.Add(manager);
 
-                subProgress.Scale = 0.5f / scope.Managers.Length;
-                subProgress.Start = new ScopeProgress(i * subProgress.Scale, $"Initialize manager {manager.name}");
+                subProgress.Start = new(i * subProgress.Scale, $"Initialize manager {manager.name}");
                 progress.Report(subProgress.Start);
 
-                yield return manager.Initialize(progress); // TODO handle progress
+                yield return manager.Initialize(progress);
             }
+        }
 
-            subProgress.Start = new ScopeProgress(0.5f, $"Load scene {scope.SceneRef.SubObjectName}");
+        public static IEnumerator BeginScope(Scope scope, IProgress<ProgressReport> progress)
+        {
+            progress.Report(new(0f, "Begin Scope"));
+            SubProgress subProgress = new(progress);
+
+            // manager initialization - 50%
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0f, null);
+            yield return InitializeManagers(scope.Managers, subProgress);
+
+            // scene loading - 30%
             subProgress.Scale = 0.3f;
+            subProgress.Start = new(0.5f, $"Load scene {scope.SceneRef.SubObjectName}");
             progress.Report(subProgress.Start);
 
             var loadSceneHandle = scope.SceneRef.LoadSceneAsync(LoadSceneMode.Additive, false);
-            yield return loadSceneHandle; // TODO handle progress
+            yield return new WaitForAsyncOperationHandleWithProgress(loadSceneHandle, subProgress);
             var scene = loadSceneHandle.Result;
 
             if (_currentScope != null)
@@ -89,22 +97,24 @@ namespace Kott.Scopes
                     _managers.Remove(manager);
                 }
 
-                subProgress.Start = new ScopeProgress(0.8f, $"Unload scene {scope.SceneRef.SubObjectName}");
+                // scene unloading - 10%
                 subProgress.Scale = 0.1f;
+                subProgress.Start = new(0.8f, $"Unload scene {scope.SceneRef.SubObjectName}");
                 progress.Report(subProgress.Start);
 
                 var unloadSceneHandle = _currentScope.SceneRef.UnLoadScene();
-                yield return unloadSceneHandle; // TODO handle progress
+                yield return new WaitForAsyncOperationHandleWithProgress(unloadSceneHandle, subProgress);
                 var currentScene = unloadSceneHandle.Result;
 
                 _currentScope = null;
             }
 
-            progressData.Info = $"Activate scene {scene.Scene.name}";
-            progressData.Progress = 0.9f;
-            progress.Report(progressData);
+            // scene activation - 10%
+            subProgress.Scale = 0.1f;
+            subProgress.Start = new(0.9f, $"Activate scene {scene.Scene.name}");
+            progress.Report(subProgress.Start);
 
-            yield return scene.ActivateAsync(); // TODO handle progress
+            yield return new WaitForAsyncOperationWithProgress(scene.ActivateAsync(), subProgress);
             SceneManager.SetActiveScene(scene.Scene);
 
             for (int i = 0; i < scope.Managers.Length; i++)
@@ -113,43 +123,11 @@ namespace Kott.Scopes
                 manager.OnSceneLoaded();
             }
 
-            progressData.Info = "Done";
-            progressData.Progress = 1f;
-            progress.Report(progressData);
+            yield return scene.ActivateAsync();
+
+            progress.Report(new(1f, "Done"));
 
             _currentScope = scope;
-        }
-
-        public static async Task<T> HandleWithProgress<T>(AsyncOperationHandle<T> handle, IProgress<ScopeProgress> progress)
-        {
-            CancellationTokenSource cts = new CancellationTokenSource();
-            var loadSceneReport = ReportProgress(handle, cts.Token, progress);
-
-            await Task.WhenAny(handle.Task, loadSceneReport);
-            cts.Cancel();
-
-            return handle.Result;
-        }
-
-        private static async Task ReportProgress<T>(AsyncOperationHandle<T> handle,
-            CancellationToken cancellationToken, IProgress<ScopeProgress> progress)
-        {
-            float p = 0f;
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                if (handle.PercentComplete > p)
-                {
-                    p = handle.PercentComplete;
-                    progress.Report(new ScopeProgress(p, null));
-                }
-
-                await Task.Yield();
-            }
-        }
-
-        public static async Task EndCurrentScope()
-        {
-            await Task.Delay(0);
         }
     }
 }

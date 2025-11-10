@@ -2,6 +2,8 @@
     "name": "Kott.Scopes",
     "rootNamespace": "Kott.Scopes",
     "references": [
+        "GUID:b0f31b71235c2cf4ba6fdc19f8bc7546",
+        "GUID:308c7070e1187384885a009efea8f867",
         "GUID:9e24947de15b9834991c9d8411ea37cf",
         "GUID:84651a3751eca9349aac36a66bba901b"
     ],
