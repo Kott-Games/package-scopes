@@ -1,14 +1,14 @@
+using Kott.Utilities.Progress;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
 using UnityEngine.SceneManagement;
 
-namespace ToG.Scopes
+namespace Kott.Scopes
 {
 
     [StructLayout(LayoutKind.Sequential, Size = 1)]
@@ -55,44 +55,43 @@ namespace ToG.Scopes
             }
         }
 
-        public static IEnumerator InitializeManagers(Manager[] managers, IProgress<ScopeProgress> progress)
+        public static IEnumerator InitializeManagers(IList<Manager> managers, IProgress<ProgressReport> progress)
         {
-            SubProgress subProgress = new SubProgress(progress);
+            if (managers == null || managers.Count == 0) yield break;
 
-            for (int i = 0; i < managers.Length; i++)
+            SubProgress subProgress = new(progress);
+            subProgress.Scale = 1f / managers.Count;
+
+            for (int i = 0; i < managers.Count; i++)
             {
                 Manager manager = managers[i];
                 _managers.Add(manager);
 
-                subProgress.Scale = 1f / managers.Length;
-                subProgress.Start = new ScopeProgress(i * subProgress.Scale, $"Initialize {manager.name}");
+                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.name}");
                 progress.Report(subProgress.Start);
 
                 yield return manager.InitializeAsync(subProgress);
-
-                subProgress.Report(new ScopeProgress(1f, null));
+                subProgress.Report(new(1f, null)); // in case manager doesn't report completion
             }
         }
 
-        public static IEnumerator BeginScope(Scope scope, IProgress<ScopeProgress> progress)
+        public static IEnumerator BeginScope(Scope scope, IProgress<ProgressReport> progress)
         {
-            ScopeProgress progressData = new ScopeProgress();
-            progressData.Info = "Begin Scope";
-            progressData.Progress = 0f;
-            progress.Report(progressData);
+            progress.Report(new(0f, "Begin Scope"));
+            SubProgress subProgress = new(progress);
 
-            SubProgress subProgress = new SubProgress(progress);
-
+            // manager initialization - 50%
             subProgress.Scale = 0.5f;
-            subProgress.Start = new ScopeProgress(0f, $"Initialize managers");
+            subProgress.Start = new(0f, null);
             yield return InitializeManagers(scope.Managers, subProgress);
 
-            subProgress.Start = new ScopeProgress(0.5f, $"Load scene {scope.SceneRef.SubObjectName}");
+            // scene loading - 30%
             subProgress.Scale = 0.3f;
+            subProgress.Start = new(0.5f, $"Load scene {scope.SceneRef.SubObjectName}");
             progress.Report(subProgress.Start);
 
             var loadSceneHandle = scope.SceneRef.LoadSceneAsync(LoadSceneMode.Additive, false);
-            yield return new WaitForHandle(loadSceneHandle, subProgress);
+            yield return new WaitForAsyncOperationHandleWithProgress(loadSceneHandle, subProgress);
             var scene = loadSceneHandle.Result;
 
             if (_currentScope != null)
@@ -103,23 +102,17 @@ namespace ToG.Scopes
                     _managers.Remove(manager);
                 }
 
-                subProgress.Start = new ScopeProgress(0.8f, $"Unload scene {scope.SceneRef.SubObjectName}");
+                // scene unloading - 10%
                 subProgress.Scale = 0.1f;
+                subProgress.Start = new(0.8f, $"Unload scene {scope.SceneRef.SubObjectName}");
                 progress.Report(subProgress.Start);
 
                 var unloadSceneHandle = _currentScope.SceneRef.UnLoadScene();
-                yield return new WaitForHandle(unloadSceneHandle, subProgress);
+                yield return new WaitForAsyncOperationHandleWithProgress(unloadSceneHandle, subProgress);
                 var currentScene = unloadSceneHandle.Result;
 
                 _currentScope = null;
             }
-
-            progressData.Info = $"Activate scene {scene.Scene.name}";
-            progressData.Progress = 0.9f;
-            progress.Report(progressData);
-
-            yield return scene.ActivateAsync();
-            SceneManager.SetActiveScene(scene.Scene);
 
             for (int i = 0; i < scope.Managers.Length; i++)
             {
@@ -127,16 +120,18 @@ namespace ToG.Scopes
                 manager.OnSceneLoaded();
             }
 
-            progressData.Info = "Done";
-            progressData.Progress = 1f;
-            progress.Report(progressData);
+            // scene activation - 10%
+            subProgress.Scale = 0.1f;
+            subProgress.Start = new(0.9f, $"Activate scene {scene.Scene.name}");
+            progress.Report(subProgress.Start);
+
+            var activateSceneOp = scene.ActivateAsync();
+            yield return new WaitForAsyncOperationWithProgress(activateSceneOp, subProgress);
+            SceneManager.SetActiveScene(scene.Scene);
+
+            progress.Report(new(1f, "Done"));
 
             _currentScope = scope;
-        }
-
-        public static async Task EndCurrentScope()
-        {
-            await Task.Delay(0);
         }
     }
 }

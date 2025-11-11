@@ -1,12 +1,13 @@
-﻿using System;
+﻿using Kott.Utilities.Progress;
+using System;
 using System.Collections;
 using UnityEngine;
 
-namespace ToG.Scopes
+namespace Kott.Scopes
 {
     public abstract class Manager : ScriptableObject
     {
-        public virtual IEnumerator InitializeAsync(IProgress<ScopeProgress> progress)
+        public virtual IEnumerator InitializeAsync(IProgress<ProgressReport> progress)
         {
             yield break;
         }
@@ -21,7 +22,7 @@ namespace ToG.Scopes
 
         public static T Instance => _instance;
 
-        public override IEnumerator InitializeAsync(IProgress<ScopeProgress> progress)
+        public override IEnumerator InitializeAsync(IProgress<ProgressReport> progress)
         {
             _instance = (T)(object)this;
             yield return base.InitializeAsync(progress);

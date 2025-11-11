@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
-namespace ToG.Scopes
+namespace Kott.Scopes
 {
-    [CreateAssetMenu(fileName = "Scope", menuName = "Scope")]
+    [CreateAssetMenu(fileName = "NewScope", menuName = "Scope", order = 9001)]
     public class Scope : ScriptableObject
     {
         public AssetReference SceneRef;
