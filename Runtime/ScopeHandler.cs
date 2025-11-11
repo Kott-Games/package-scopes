@@ -1,9 +1,7 @@
-using Kott.Utilities.Addressables;
 using Kott.Utilities.Progress;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.LowLevel;
@@ -12,8 +10,10 @@ using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
 {
+
     [StructLayout(LayoutKind.Sequential, Size = 1)]
-    public struct ScopeManagerUpdate { }
+    public struct ScopeManagerUpdate
+    { }
 
     public static class ScopeHandler
     {
@@ -29,13 +29,17 @@ namespace Kott.Scopes
             {
                 if (rootSystem.subSystemList[i].type == typeof(Update))
                 {
-                    rootSystem.subSystemList[i].subSystemList = rootSystem.subSystemList[i].subSystemList
-                        .Prepend(new PlayerLoopSystem()
-                        {
-                            type = typeof(ScopeManagerUpdate),
-                            updateDelegate = ManagerUpdate,
-                        })
-                        .ToArray();
+                    PlayerLoopSystem[] subSystems = rootSystem.subSystemList[i].subSystemList;
+                    PlayerLoopSystem[] subSystemsEdited = new PlayerLoopSystem[subSystems.Length + 1];
+
+                    subSystemsEdited[0] = new PlayerLoopSystem()
+                    {
+                        type = typeof(ScopeManagerUpdate),
+                        updateDelegate = ManagerUpdate,
+                    };
+
+                    subSystems.CopyTo(subSystemsEdited, 1);
+
                     break;
                 }
             }
@@ -63,10 +67,11 @@ namespace Kott.Scopes
                 Manager manager = managers[i];
                 _managers.Add(manager);
 
-                subProgress.Start = new(i * subProgress.Scale, $"Initialize manager {manager.name}");
+                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.name}");
                 progress.Report(subProgress.Start);
 
-                yield return manager.Initialize(progress);
+                yield return manager.InitializeAsync(subProgress);
+                subProgress.Report(new(1f, null)); // in case manager doesn't report completion
             }
         }
 
@@ -109,21 +114,20 @@ namespace Kott.Scopes
                 _currentScope = null;
             }
 
-            // scene activation - 10%
-            subProgress.Scale = 0.1f;
-            subProgress.Start = new(0.9f, $"Activate scene {scene.Scene.name}");
-            progress.Report(subProgress.Start);
-
-            yield return new WaitForAsyncOperationWithProgress(scene.ActivateAsync(), subProgress);
-            SceneManager.SetActiveScene(scene.Scene);
-
             for (int i = 0; i < scope.Managers.Length; i++)
             {
                 Manager manager = scope.Managers[i];
                 manager.OnSceneLoaded();
             }
 
-            yield return scene.ActivateAsync();
+            // scene activation - 10%
+            subProgress.Scale = 0.1f;
+            subProgress.Start = new(0.9f, $"Activate scene {scene.Scene.name}");
+            progress.Report(subProgress.Start);
+
+            var activateSceneOp = scene.ActivateAsync();
+            yield return new WaitForAsyncOperationWithProgress(activateSceneOp, subProgress);
+            SceneManager.SetActiveScene(scene.Scene);
 
             progress.Report(new(1f, "Done"));
 

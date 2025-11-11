@@ -10,9 +10,9 @@ namespace Kott.Scopes
     {
         [SerializeField] private float _delaySeconds = 1f;
 
-        public override IEnumerator Initialize(IProgress<ProgressReport> progress)
+        public override IEnumerator InitializeAsync(IProgress<ProgressReport> progress)
         {
-            yield return base.Initialize(progress);
+            yield return base.InitializeAsync(progress);
             float timer = 0f;
             while (timer < _delaySeconds)
             {
