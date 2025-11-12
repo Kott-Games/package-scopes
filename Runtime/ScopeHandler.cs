@@ -19,6 +19,7 @@ namespace Kott.Scopes
     {
         private static Scope _currentScope;
         private static List<Manager> _managers = new();
+        private static Dictionary<string, SceneLink> _sceneLinks = new();
 
         [RuntimeInitializeOnLoadMethod]
         private static void UpdateLoopManagement()
@@ -114,9 +115,8 @@ namespace Kott.Scopes
                 _currentScope = null;
             }
 
-            for (int i = 0; i < scope.Managers.Length; i++)
+            foreach (Manager manager in scope.Managers)
             {
-                Manager manager = scope.Managers[i];
                 manager.OnSceneLoaded();
             }
 
@@ -129,9 +129,41 @@ namespace Kott.Scopes
             yield return new WaitForAsyncOperationWithProgress(activateSceneOp, subProgress);
             SceneManager.SetActiveScene(scene.Scene);
 
+            _sceneLinks.Clear();
+
+            List<GameObject> gameObjects = new();
+            List<SceneLink> sceneLinksTemp = new();
+
+            scene.Scene.GetRootGameObjects(gameObjects);
+            while (gameObjects.Count > 0)
+            {
+                var gameObject = gameObjects[0];
+                gameObjects.RemoveAt(0);
+
+                sceneLinksTemp.Clear();
+                gameObject.GetComponentsInChildren(true, sceneLinksTemp);
+                sceneLinksTemp.ForEach(l => _sceneLinks.Add(l.Key, l));
+            }
+
+            foreach (Manager manager in scope.Managers)
+            {
+                manager.OnSceneActivated();
+            }
+
             progress.Report(new(1f, "Done"));
 
             _currentScope = scope;
+        }
+
+        public static GameObject GetSceneGameObject(string key)
+        {
+            return _sceneLinks[key].gameObject;
+        }
+
+        public static T GetSceneComponent<T>(string key)
+            where T : UnityEngine.Object
+        {
+            return _sceneLinks[key].GetComponent<T>();
         }
     }
 }

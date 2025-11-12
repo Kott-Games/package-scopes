@@ -13,6 +13,7 @@ namespace Kott.Scopes
         }
 
         public virtual void OnSceneLoaded() { }
+        public virtual void OnSceneActivated() { }
         public virtual void Update() { }
     }
 
