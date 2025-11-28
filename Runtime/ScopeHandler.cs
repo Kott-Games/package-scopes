@@ -2,6 +2,7 @@ using Kott.Utilities.Progress;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.LowLevel;
@@ -20,6 +21,7 @@ namespace Kott.Scopes
         private static Scope _currentScope;
         private static List<Manager> _managers = new();
         private static Dictionary<string, SceneLink> _sceneLinks = new();
+        private static Dictionary<Type, IManager> _managerLookup = new();
 
         [RuntimeInitializeOnLoadMethod]
         private static void UpdateLoopManagement()
@@ -68,11 +70,13 @@ namespace Kott.Scopes
                 Manager manager = managers[i];
                 _managers.Add(manager);
 
-                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.name}");
+                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.GetType().Name}");
                 progress.Report(subProgress.Start);
 
                 yield return manager.InitializeAsync(subProgress);
                 subProgress.Report(new(1f, null)); // in case manager doesn't report completion
+
+                RegisterManager(manager);
             }
         }
 
@@ -164,6 +168,27 @@ namespace Kott.Scopes
             where T : UnityEngine.Object
         {
             return _sceneLinks[key].GetComponent<T>();
+        }
+
+
+        private static void RegisterManager(IManager manager)
+        {
+            Type managerType = manager.GetType();
+            _managerLookup.Add(managerType, manager);
+
+            IEnumerable<Type> interfaceTypes = managerType.GetInterfaces()
+                .Where(t => t.IsGenericType && t.GetGenericTypeDefinition().IsEquivalentTo(typeof(IManagerContract<>)))
+                .Select(t => t.GetGenericArguments()[0]);
+
+            foreach (Type interfaceType in interfaceTypes)
+                _managerLookup.Add(interfaceType, manager);
+        }
+
+        public static T GetManager<T>()
+            where T : IManager
+        {
+            Type key = typeof(T);
+            return (T)_managerLookup[key];
         }
     }
 }

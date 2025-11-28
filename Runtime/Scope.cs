@@ -7,6 +7,6 @@ namespace Kott.Scopes
     public class Scope : ScriptableObject
     {
         public AssetReference SceneRef;
-        public Manager[] Managers;
+        [SerializeReference] public Manager[] Managers;
     }
 }
