@@ -11,7 +11,6 @@ using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
 {
-
     [StructLayout(LayoutKind.Sequential, Size = 1)]
     public struct ScopeManagerUpdate
     { }
@@ -165,11 +164,9 @@ namespace Kott.Scopes
         }
 
         public static T GetSceneComponent<T>(string key)
-            where T : UnityEngine.Object
         {
             return _sceneLinks[key].GetComponent<T>();
         }
-
 
         private static void RegisterManager(IManager manager)
         {
@@ -188,6 +185,9 @@ namespace Kott.Scopes
             where T : IManager
         {
             Type key = typeof(T);
+#if UNITY_EDITOR
+            if (!_managerLookup.ContainsKey(key)) return default;
+#endif
             return (T)_managerLookup[key];
         }
     }

@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    [CreateAssetMenu(fileName = "DelayManager", menuName = "Manager/Delay Manager", order = 9002)]
     public class DelayManager : Manager
     {
         [SerializeField] private float _delaySeconds = 1f;
