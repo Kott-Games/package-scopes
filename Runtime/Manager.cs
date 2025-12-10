@@ -14,13 +14,20 @@ namespace Kott.Scopes
     [System.Serializable]
     public abstract class Manager : IManager
     {
-        public virtual IEnumerator InitializeAsync(IProgress<ProgressReport> progress)
+        public virtual IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
             yield break;
         }
 
-        public virtual void OnSceneLoaded() { }
-        public virtual void OnSceneActivated() { }
+        public virtual IEnumerator Uninitialize(IProgress<ProgressReport> progress)
+        {
+            yield break;
+        }
+
+        public virtual void SceneAwake() { }
+        public virtual void SceneStart() { }
+        public virtual void SceneExit() { }
+
         public virtual void Update() { }
     }
 }

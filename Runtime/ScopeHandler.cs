@@ -3,24 +3,45 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
+using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
 {
-    [StructLayout(LayoutKind.Sequential, Size = 1)]
-    public struct ScopeManagerUpdate
-    { }
-
-    public static class ScopeHandler
+    public class ScopeHandler
     {
-        private static Scope _currentScope;
-        private static List<Manager> _managers = new();
-        private static Dictionary<string, SceneLink> _sceneLinks = new();
-        private static Dictionary<Type, IManager> _managerLookup = new();
+        private static ScopeHandler _instance;
+
+        public static ScopeHandler Instance
+        {
+            get
+            {
+                _instance ??= new();
+                return _instance;
+            }
+        }
+
+        private class RuntimeScope
+        {
+            public Scope Scope { get; }
+            public HashSet<Type> ManagerLookupKeys { get; } = new();
+            public HashSet<string> SceneLinksKeys { get; } = new();
+            public SceneInstance SceneInstance { get; set; }
+
+            public RuntimeScope(Scope scope)
+            {
+                Scope = scope;
+            }
+        }
+
+        private Stack<RuntimeScope> _scopes = new();
+        private Dictionary<Type, IManager> _managerLookup = new();
+        private Dictionary<string, SceneLink> _sceneLinks = new();
+
+        private RuntimeScope _activeScope;
 
         [RuntimeInitializeOnLoadMethod]
         private static void UpdateLoopManagement()
@@ -37,7 +58,7 @@ namespace Kott.Scopes
                     subSystemsEdited[0] = new PlayerLoopSystem()
                     {
                         type = typeof(ScopeManagerUpdate),
-                        updateDelegate = ManagerUpdate,
+                        updateDelegate = Instance.ManagerUpdate,
                     };
 
                     subSystems.CopyTo(subSystemsEdited, 1);
@@ -49,128 +70,23 @@ namespace Kott.Scopes
             PlayerLoop.SetPlayerLoop(rootSystem);
         }
 
-        private static void ManagerUpdate()
+        private ScopeHandler() { }
+
+        private void ManagerUpdate()
         {
-            for (int i = 0; i < _managers.Count; i++)
+            foreach (RuntimeScope runtimeScope in _scopes)
             {
-                _managers[i].Update();
-            }
-        }
-
-        public static IEnumerator InitializeManagers(IList<Manager> managers, IProgress<ProgressReport> progress)
-        {
-            if (managers == null || managers.Count == 0) yield break;
-
-            SubProgress subProgress = new(progress);
-            subProgress.Scale = 1f / managers.Count;
-
-            for (int i = 0; i < managers.Count; i++)
-            {
-                Manager manager = managers[i];
-                _managers.Add(manager);
-
-                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.GetType().Name}");
-                progress.Report(subProgress.Start);
-
-                yield return manager.InitializeAsync(subProgress);
-                subProgress.Report(new(1f, null)); // in case manager doesn't report completion
-
-                RegisterManager(manager);
-            }
-        }
-
-        public static IEnumerator BeginScope(Scope scope, IProgress<ProgressReport> progress)
-        {
-            progress.Report(new(0f, "Begin Scope"));
-            SubProgress subProgress = new(progress);
-
-            // manager initialization - 50%
-            subProgress.Scale = 0.5f;
-            subProgress.Start = new(0f, null);
-            yield return InitializeManagers(scope.Managers, subProgress);
-
-            // scene loading - 30%
-            subProgress.Scale = 0.3f;
-            subProgress.Start = new(0.5f, $"Load scene {scope.SceneRef.SubObjectName}");
-            progress.Report(subProgress.Start);
-
-            var loadSceneHandle = scope.SceneRef.LoadSceneAsync(LoadSceneMode.Additive, false);
-            yield return new WaitForAsyncOperationHandleWithProgress(loadSceneHandle, subProgress);
-            var scene = loadSceneHandle.Result;
-
-            if (_currentScope != null)
-            {
-                for (int i = 0; i < _currentScope.Managers.Length; i++)
+                foreach (Manager manager in runtimeScope.Scope.Managers)
                 {
-                    Manager manager = scope.Managers[i];
-                    _managers.Remove(manager);
+                    manager.Update();
                 }
-
-                // scene unloading - 10%
-                subProgress.Scale = 0.1f;
-                subProgress.Start = new(0.8f, $"Unload scene {scope.SceneRef.SubObjectName}");
-                progress.Report(subProgress.Start);
-
-                var unloadSceneHandle = _currentScope.SceneRef.UnLoadScene();
-                yield return new WaitForAsyncOperationHandleWithProgress(unloadSceneHandle, subProgress);
-                var currentScene = unloadSceneHandle.Result;
-
-                _currentScope = null;
             }
-
-            foreach (Manager manager in scope.Managers)
-            {
-                manager.OnSceneLoaded();
-            }
-
-            // scene activation - 10%
-            subProgress.Scale = 0.1f;
-            subProgress.Start = new(0.9f, $"Activate scene {scene.Scene.name}");
-            progress.Report(subProgress.Start);
-
-            var activateSceneOp = scene.ActivateAsync();
-            yield return new WaitForAsyncOperationWithProgress(activateSceneOp, subProgress);
-            SceneManager.SetActiveScene(scene.Scene);
-
-            _sceneLinks.Clear();
-
-            List<GameObject> gameObjects = new();
-            List<SceneLink> sceneLinksTemp = new();
-
-            scene.Scene.GetRootGameObjects(gameObjects);
-            while (gameObjects.Count > 0)
-            {
-                var gameObject = gameObjects[0];
-                gameObjects.RemoveAt(0);
-
-                sceneLinksTemp.Clear();
-                gameObject.GetComponentsInChildren(true, sceneLinksTemp);
-                sceneLinksTemp.ForEach(l => _sceneLinks.Add(l.Key, l));
-            }
-
-            foreach (Manager manager in scope.Managers)
-            {
-                manager.OnSceneActivated();
-            }
-
-            progress.Report(new(1f, "Done"));
-
-            _currentScope = scope;
         }
 
-        public static GameObject GetSceneGameObject(string key)
-        {
-            return _sceneLinks[key].gameObject;
-        }
-
-        public static T GetSceneComponent<T>(string key)
-        {
-            return _sceneLinks[key].GetComponent<T>();
-        }
-
-        private static void RegisterManager(IManager manager)
+        private void RegisterManager(RuntimeScope runtimeScope, Manager manager)
         {
             Type managerType = manager.GetType();
+            runtimeScope.ManagerLookupKeys.Add(managerType);
             _managerLookup.Add(managerType, manager);
 
             IEnumerable<Type> interfaceTypes = managerType.GetInterfaces()
@@ -178,17 +94,217 @@ namespace Kott.Scopes
                 .Select(t => t.GetGenericArguments()[0]);
 
             foreach (Type interfaceType in interfaceTypes)
+            {
+                runtimeScope.ManagerLookupKeys.Add(interfaceType);
                 _managerLookup.Add(interfaceType, manager);
+            }
         }
 
-        public static T GetManager<T>()
+        private IEnumerator InitializeManagers(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            if (runtimeScope.Scope.Managers.Count == 0) yield break;
+
+            foreach (Manager manager in runtimeScope.Scope.Managers)
+            {
+                RegisterManager(runtimeScope, manager);
+            }
+
+            SubProgress subProgress = new(progress);
+            subProgress.Scale = 1f / runtimeScope.Scope.Managers.Count;
+
+            for (int i = 0; i < runtimeScope.Scope.Managers.Count; i++)
+            {
+                Manager manager = runtimeScope.Scope.Managers[i];
+
+                subProgress.Start = new(i * subProgress.Scale, $"Initialize {manager.GetType().Name}");
+                progress.Report(subProgress.Start);
+
+                yield return manager.Initialize(subProgress);
+                subProgress.Report(new(1f, null)); // in case manager doesn't report completion
+            }
+        }
+
+        private IEnumerator UninitializeManagers(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            foreach (Type key in runtimeScope.ManagerLookupKeys)
+                _managerLookup.Remove(key);
+            runtimeScope.ManagerLookupKeys.Clear();
+
+            if (runtimeScope.Scope.Managers.Count == 0) yield break;
+
+            SubProgress subProgress = new(progress);
+            subProgress.Scale = 1f / runtimeScope.Scope.Managers.Count;
+
+            for (int i = 0; i < runtimeScope.Scope.Managers.Count; i++)
+            {
+                Manager manager = runtimeScope.Scope.Managers[i];
+
+                subProgress.Start = new(i * subProgress.Scale, $"Uninitialize {manager.GetType().Name}");
+                progress.Report(subProgress.Start);
+
+                yield return manager.Uninitialize(subProgress);
+                subProgress.Report(new(1f, null)); // in case manager doesn't report completion
+            }
+        }
+
+        private IEnumerator LoadScene(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            if (!runtimeScope.Scope.SceneRef.RuntimeKeyIsValid()) yield break;
+
+            SubProgress subProgress = new(progress);
+
+            // scene loading - 90%
+            subProgress.Scale = 0.9f;
+            subProgress.Start = new(0f, $"Load scene {runtimeScope.Scope.SceneRef.SubObjectName}");
+            progress.Report(subProgress.Start);
+
+            var loadSceneHandle = runtimeScope.Scope.SceneRef.LoadSceneAsync(LoadSceneMode.Additive, false);
+            yield return new WaitForAsyncOperationHandleWithProgress(loadSceneHandle, subProgress);
+            runtimeScope.SceneInstance = loadSceneHandle.Result;
+
+            // scene activation - 10%
+            subProgress.Scale = 0.1f;
+            subProgress.Start = new(0.9f, $"Activate scene {runtimeScope.SceneInstance.Scene.name}");
+            progress.Report(subProgress.Start);
+
+            var activateSceneOp = runtimeScope.SceneInstance.ActivateAsync();
+            yield return new WaitForAsyncOperationWithProgress(activateSceneOp, subProgress);
+            SceneManager.SetActiveScene(runtimeScope.SceneInstance.Scene);
+        }
+        
+        private IEnumerator UnloadScene(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            if (!runtimeScope.Scope.SceneRef.IsValid()) yield break;
+
+            SubProgress subProgress = new(progress);
+
+            // notify managers about scene change
+            foreach (Manager manager in runtimeScope.Scope.Managers)
+            {
+                manager.SceneExit();
+            }
+
+            // scene loading - 90%
+            subProgress.Scale = 0.9f;
+            subProgress.Start = new(0f, $"Unload scene {runtimeScope.Scope.SceneRef.SubObjectName}");
+            progress.Report(subProgress.Start);
+
+            var unloadSceneHandle = runtimeScope.Scope.SceneRef.UnLoadScene();
+            yield return new WaitForAsyncOperationHandleWithProgress(unloadSceneHandle, subProgress);
+
+            // clear scene links
+            foreach (string key in runtimeScope.SceneLinksKeys)
+                _sceneLinks.Remove(key);
+            runtimeScope.SceneLinksKeys.Clear();
+        }
+
+        internal void SceneAwake(SceneRoot sceneRoot)
+        {
+            if (_activeScope == null) return;
+
+            SceneLink[] sceneLinks = sceneRoot.Collect();
+            foreach (SceneLink sceneLink in sceneLinks)
+            {
+                _activeScope.SceneLinksKeys.Add(sceneLink.Key);
+                _sceneLinks.Add(sceneLink.Key, sceneLink);
+            }
+
+            foreach (Manager manager in _activeScope.Scope.Managers)
+            {
+                manager.SceneAwake();
+            }
+        }
+
+        internal void SceneStart(SceneRoot sceneRoot)
+        {
+            if (_activeScope == null) return;
+            foreach (Manager manager in _activeScope.Scope.Managers)
+            {
+                manager.SceneStart();
+            }
+        }
+
+        private IEnumerator LoadScope(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            progress.Report(new(0f, $"Load Scope {runtimeScope.Scope.name}"));
+            SubProgress subProgress = new(progress);
+            _activeScope = runtimeScope;
+
+            // manager initialization - 50%
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0f, null);
+            yield return InitializeManagers(runtimeScope, subProgress);
+
+            // scene loading - 50%
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0.5f, null);
+            yield return LoadScene(runtimeScope, subProgress);
+
+            _activeScope = null;
+            progress.Report(new(1f, "Done"));
+        }
+
+        private IEnumerator UnloadScope(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
+        {
+            progress.Report(new(0f, $"Load Scope {runtimeScope.Scope.name}"));
+            SubProgress subProgress = new(progress);
+            _activeScope = runtimeScope;
+
+            // scene unloading - 50%
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0f, null);
+            yield return UnloadScene(runtimeScope, subProgress);
+
+            // manager uninitialization - 50%
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0.5f, null);
+            yield return UninitializeManagers(runtimeScope, subProgress);
+
+            _activeScope = null;
+            progress.Report(new(1f, "Done"));
+        }
+
+        public IEnumerator PushScope(Scope scope, IProgress<ProgressReport> progress)
+        {
+            RuntimeScope runtimeScope = new(scope);
+            _scopes.Push(runtimeScope);
+            yield return LoadScope(runtimeScope, progress);
+        }
+
+        public IEnumerator PopScope(IProgress<ProgressReport> progress)
+        {
+            RuntimeScope runtimeScope = _scopes.Pop();
+            yield return UnloadScope(runtimeScope, progress);
+        }
+
+        public IEnumerator SwitchScope(Scope scope, IProgress<ProgressReport> progress)
+        {
+            SubProgress subProgress = new(progress);
+
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0f, null);
+            yield return PopScope(progress);
+
+            subProgress.Scale = 0.5f;
+            subProgress.Start = new(0.5f, null);
+            yield return PushScope(scope, progress);
+        }
+
+        public T GetManager<T>()
             where T : IManager
         {
             Type key = typeof(T);
-#if UNITY_EDITOR
-            if (!_managerLookup.ContainsKey(key)) return default;
-#endif
             return (T)_managerLookup[key];
+        }
+
+        public GameObject GetSceneGameObject(string key)
+        {
+            return _sceneLinks[key].gameObject;
+        }
+
+        public T GetSceneComponent<T>(string key)
+        {
+            return _sceneLinks[key].GetComponent<T>();
         }
     }
 }
