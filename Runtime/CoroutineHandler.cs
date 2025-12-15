@@ -13,6 +13,8 @@ namespace Kott.Scopes
         private void Awake()
         {
             Instance = this;
+            DontDestroyOnLoad(gameObject);
+
             _pool = new(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
         }
 
@@ -34,7 +36,7 @@ namespace Kott.Scopes
 
         private void PoolDestroy(CoroutineRunner runner)
         {
-            UnityEngine.Object.Destroy(runner);
+            Destroy(runner);
         }
 
         public void Run(IEnumerator routine)

@@ -14,10 +14,5 @@ namespace Kott.Scopes
         {
             ScopeHandler.Instance.SceneStart(this);
         }
-
-        public SceneLink[] Collect()
-        {
-            return FindObjectsByType<SceneLink>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        }
     }
 }

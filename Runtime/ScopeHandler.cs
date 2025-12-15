@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
@@ -11,18 +12,9 @@ using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
 {
-    public class ScopeHandler
+    public class ScopeHandler : MonoBehaviour
     {
-        private static ScopeHandler _instance;
-
-        public static ScopeHandler Instance
-        {
-            get
-            {
-                _instance ??= new();
-                return _instance;
-            }
-        }
+        public static ScopeHandler Instance { get; private set; }
 
         private class RuntimeScope
         {
@@ -70,7 +62,11 @@ namespace Kott.Scopes
             PlayerLoop.SetPlayerLoop(rootSystem);
         }
 
-        private ScopeHandler() { }
+        private void Awake()
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
 
         private void ManagerUpdate()
         {
@@ -202,11 +198,17 @@ namespace Kott.Scopes
         {
             if (_activeScope == null) return;
 
-            SceneLink[] sceneLinks = sceneRoot.Collect();
-            foreach (SceneLink sceneLink in sceneLinks)
+            List<SceneLink> sceneLinks = new();
+            GameObject[] sceneObjects = _activeScope.SceneInstance.Scene.GetRootGameObjects();
+            foreach (GameObject sceneObject in sceneObjects)
             {
-                _activeScope.SceneLinksKeys.Add(sceneLink.Key);
-                _sceneLinks.Add(sceneLink.Key, sceneLink);
+                sceneLinks.Clear();
+                sceneObject.GetComponentsInChildren(true, sceneLinks);
+                foreach (SceneLink sceneLink in sceneLinks)
+                {
+                    _activeScope.SceneLinksKeys.Add(sceneLink.Key);
+                    _sceneLinks.Add(sceneLink.Key, sceneLink);
+                }
             }
 
             foreach (Manager manager in _activeScope.Scope.Managers)
