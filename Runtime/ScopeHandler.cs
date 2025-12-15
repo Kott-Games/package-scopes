@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.LowLevel;
@@ -44,22 +45,41 @@ namespace Kott.Scopes
             {
                 if (rootSystem.subSystemList[i].type == typeof(Update))
                 {
-                    PlayerLoopSystem[] subSystems = rootSystem.subSystemList[i].subSystemList;
-                    PlayerLoopSystem[] subSystemsEdited = new PlayerLoopSystem[subSystems.Length + 1];
-
-                    subSystemsEdited[0] = new PlayerLoopSystem()
-                    {
-                        type = typeof(ScopeManagerUpdate),
-                        updateDelegate = Instance.ManagerUpdate,
-                    };
-
-                    subSystems.CopyTo(subSystemsEdited, 1);
-
-                    break;
+                    InsertLoopSystem<ScopeManagerUpdate>(
+                        ref rootSystem.subSystemList[i].subSystemList,
+                        Instance.ManagerUpdate);
                 }
             }
 
             PlayerLoop.SetPlayerLoop(rootSystem);
+
+            StringBuilder sb = new();
+            PrintLoopSystems(sb, rootSystem);
+            Debug.Log(sb.ToString());
+        }
+
+        private static void InsertLoopSystem<T>(ref PlayerLoopSystem[] systems, PlayerLoopSystem.UpdateFunction updateDelegate)
+        {
+            PlayerLoopSystem[] systemsEdited = new PlayerLoopSystem[systems.Length + 1];
+
+            systemsEdited[0] = new PlayerLoopSystem()
+            {
+                type = typeof(T),
+                updateDelegate = updateDelegate,
+            };
+
+            systems.CopyTo(systemsEdited, 1);
+            systems = systemsEdited;
+        }
+
+        private static void PrintLoopSystems(StringBuilder sb, PlayerLoopSystem system, string indent = "")
+        {
+            sb.AppendLine($"{indent}{system.type?.Name}");
+            if (system.subSystemList == null) return;
+            foreach (var subSystem in system.subSystemList)
+            {
+                PrintLoopSystems(sb, subSystem, indent + "  ");
+            }
         }
 
         private void Awake()
