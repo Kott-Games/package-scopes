@@ -36,65 +36,32 @@ namespace Kott.Scopes
 
         private RuntimeScope _activeScope;
 
-        [RuntimeInitializeOnLoadMethod]
-        private static void UpdateLoopManagement()
-        {
-            PlayerLoopSystem rootSystem = PlayerLoop.GetDefaultPlayerLoop();
-
-            for (int i = 0; i < rootSystem.subSystemList.Length; i++)
-            {
-                if (rootSystem.subSystemList[i].type == typeof(Update))
-                {
-                    InsertLoopSystem<ScopeManagerUpdate>(
-                        ref rootSystem.subSystemList[i].subSystemList,
-                        Instance.ManagerUpdate);
-                }
-            }
-
-            PlayerLoop.SetPlayerLoop(rootSystem);
-
-            StringBuilder sb = new();
-            PrintLoopSystems(sb, rootSystem);
-            Debug.Log(sb.ToString());
-        }
-
-        private static void InsertLoopSystem<T>(ref PlayerLoopSystem[] systems, PlayerLoopSystem.UpdateFunction updateDelegate)
-        {
-            PlayerLoopSystem[] systemsEdited = new PlayerLoopSystem[systems.Length + 1];
-
-            systemsEdited[0] = new PlayerLoopSystem()
-            {
-                type = typeof(T),
-                updateDelegate = updateDelegate,
-            };
-
-            systems.CopyTo(systemsEdited, 1);
-            systems = systemsEdited;
-        }
-
-        private static void PrintLoopSystems(StringBuilder sb, PlayerLoopSystem system, string indent = "")
-        {
-            sb.AppendLine($"{indent}{system.type?.Name}");
-            if (system.subSystemList == null) return;
-            foreach (var subSystem in system.subSystemList)
-            {
-                PrintLoopSystems(sb, subSystem, indent + "  ");
-            }
-        }
-
         private void Awake()
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
         }
 
-        private void ManagerUpdate()
+        private void Update()
         {
             foreach (RuntimeScope runtimeScope in _scopes)
             {
                 foreach (Manager manager in runtimeScope.Scope.Managers)
                 {
                     manager.Update();
+                }
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            // TODO create new method/event for this
+            // notify managers about application quit
+            foreach (RuntimeScope runtimeScope in _scopes)
+            {
+                foreach (Manager manager in runtimeScope.Scope.Managers)
+                {
+                    manager.SceneExit();
                 }
             }
         }
