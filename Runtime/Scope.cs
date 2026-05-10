@@ -9,9 +9,9 @@ namespace Kott.Scopes
     public class Scope : ScriptableObject
     {
         [SerializeField] private AssetReference _sceneRef;
-        [SerializeReference] private Manager[] _managers;
+        [SerializeReference] private GameObject _managerContainer;
 
         public AssetReference SceneRef => _sceneRef;
-        public IReadOnlyList<Manager> Managers => _managers != null ? _managers : Array.Empty<Manager>();
+        public GameObject ManagerContainer => _managerContainer;
     }
 }

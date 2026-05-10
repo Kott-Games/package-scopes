@@ -4,6 +4,9 @@ using UnityEngine.Pool;
 
 namespace Kott.Scopes
 {
+    /// <summary>
+    /// Handles running of coroutines for other objects.
+    /// </summary>
     public class CoroutineHandler : MonoBehaviour
     {
         public static CoroutineHandler Instance { get; private set; }
@@ -15,7 +18,7 @@ namespace Kott.Scopes
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            _pool = new(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
+            _pool = new ObjectPool<CoroutineRunner>(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
         }
 
         private CoroutineRunner PoolCreate()
@@ -24,17 +27,17 @@ namespace Kott.Scopes
             return runner;
         }
 
-        private void PoolGet(CoroutineRunner runner)
+        private static void PoolGet(CoroutineRunner runner)
         {
             runner.enabled = true;
         }
 
-        private void PoolRelease(CoroutineRunner runner)
+        private static void PoolRelease(CoroutineRunner runner)
         {
             runner.enabled = false;
         }
 
-        private void PoolDestroy(CoroutineRunner runner)
+        private static void PoolDestroy(CoroutineRunner runner)
         {
             Destroy(runner);
         }
