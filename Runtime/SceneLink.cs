@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    public class SceneLink : MonoBehaviour
+    public sealed class SceneLink : MonoBehaviour
     {
         [SerializeField] private string _key;
 

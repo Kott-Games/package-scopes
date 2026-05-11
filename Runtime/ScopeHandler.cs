@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace Kott.Scopes
 {
-    public class ScopeHandler : MonoBehaviour
+    public sealed class ScopeHandler : MonoBehaviour
     {
         public static ScopeHandler Instance { get; private set; }
         public RuntimeScope RootScope { get; private set; }
@@ -205,6 +205,7 @@ namespace Kott.Scopes
             GameObject managerContainer = Instantiate(scope.ManagerContainer, transform);
             managerContainer.name = $"Managers '{scope.name}'";
 
+            parent ??= RootScope;
             RuntimeScope runtimeScope = new(scope, parent, managerContainer);
             RootScope ??= runtimeScope;
             parent?.ChildrenInternal.Insert(0, runtimeScope);
@@ -235,7 +236,6 @@ namespace Kott.Scopes
             while (runtimeScope.ChildrenInternal.Count > 0)
             {
                 RuntimeScope child = runtimeScope.ChildrenInternal[0];
-                runtimeScope.ChildrenInternal.RemoveAt(0);
                 yield return UnloadScope(child, progress);
             }
 
@@ -255,6 +255,8 @@ namespace Kott.Scopes
             yield return UninitializeManagers(runtimeScope, subProgress);
 
             progress?.Report(new ProgressReport(1f, "Done"));
+
+            Destroy(runtimeScope.ManagerContainer);
 
             _activeScope = null; // unset active unloading scope
         }

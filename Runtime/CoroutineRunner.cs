@@ -4,7 +4,7 @@ using UnityEngine.Pool;
 
 namespace Kott.Scopes
 {
-    internal class CoroutineRunner : MonoBehaviour
+    internal sealed class CoroutineRunner : MonoBehaviour
     {
         private IObjectPool<CoroutineRunner> _pool;
         private IEnumerator _routine;

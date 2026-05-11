@@ -5,9 +5,9 @@ using UnityEngine.Pool;
 namespace Kott.Scopes
 {
     /// <summary>
-    /// Handles running of coroutines for other objects.
+    ///     Handles running of coroutines for other objects.
     /// </summary>
-    public class CoroutineHandler : MonoBehaviour
+    public sealed class CoroutineHandler : MonoBehaviour
     {
         public static CoroutineHandler Instance { get; private set; }
 

@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using Kott.Utilities.Progress;
 using UnityEngine;
@@ -7,7 +6,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Kott.Scopes
 {
-    public class Bootstrap : MonoBehaviour
+    public sealed class Bootstrap : MonoBehaviour
     {
         [SerializeField] private AssetReference _scopeRef;
 

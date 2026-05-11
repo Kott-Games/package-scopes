@@ -1,6 +1,6 @@
-﻿using Kott.Utilities.Progress;
-using System;
+﻿using System;
 using System.Collections;
+using Kott.Utilities.Progress;
 using UnityEngine;
 
 namespace Kott.Scopes
@@ -8,9 +8,9 @@ namespace Kott.Scopes
     public abstract class Manager : Component
     {
         public RuntimeScope RuntimeScope { get; internal set; }
-        
+
         /// <summary>
-        /// Initialization before the scene is loaded.
+        ///     Initialization before the scene is loaded.
         /// </summary>
         public virtual IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
@@ -18,16 +18,23 @@ namespace Kott.Scopes
         }
 
         /// <summary>
-        /// Uninitialization after the scene is unloaded.
+        ///     Uninitialization after the scene is unloaded.
         /// </summary>
         public virtual IEnumerator Uninitialize(IProgress<ProgressReport> progress)
         {
             yield break;
         }
 
-        public virtual void SceneAwake() { }
-        public virtual void SceneStart() { }
-        public virtual void SceneUpdate() { }
-        public virtual void SceneExit() { }
+        public virtual void SceneAwake()
+        { }
+
+        public virtual void SceneStart()
+        { }
+
+        public virtual void SceneUpdate()
+        { }
+
+        public virtual void SceneExit()
+        { }
     }
 }
