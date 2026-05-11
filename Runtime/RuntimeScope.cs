@@ -14,9 +14,10 @@ namespace Kott.Scopes
         internal List<RuntimeScope> ChildrenInternal { get; } = new();
         
         internal GameObject ManagerContainer { get; }
-        internal IReadOnlyList<IManager> Managers { get; }
+        internal IReadOnlyList<Manager> Managers { get; }
         internal HashSet<Type> SingleManagerTypes { get; } = new();
         
+        internal SceneRoot SceneRoot { get; set; }
         internal SceneInstance SceneInstance { get; set; }
         
         private readonly Dictionary<string, SceneLink> _sceneLinks = new();
@@ -27,7 +28,7 @@ namespace Kott.Scopes
             Parent = parent;
             ManagerContainer = managerContainer;
 
-            List<IManager> managers = new();
+            List<Manager> managers = new();
             managerContainer.GetComponentsInChildren(managers);
             Managers = managers;
         }

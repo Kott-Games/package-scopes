@@ -5,35 +5,29 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    public interface IManager
-    {
-        RuntimeScope RuntimeScope { get; }
-        
-        IEnumerator Initialize(IProgress<ProgressReport> progress)
-        {
-            yield break;
-        }
-
-        IEnumerator Uninitialize(IProgress<ProgressReport> progress)
-        {
-            yield break;
-        }
-
-        void SceneAwake() { }
-        void SceneStart() { }
-        void SceneExit() { }
-    }
-    
-    public interface ISingletonManager : IManager
-    { }
-
-    public interface IManagerContract<T> : IManager
-        where T : IManager
-    { }
-
-    [Serializable]
-    public abstract class Manager : Component, IManager
+    public abstract class Manager : Component
     {
         public RuntimeScope RuntimeScope { get; internal set; }
+        
+        /// <summary>
+        /// Initialization before the scene is loaded.
+        /// </summary>
+        public virtual IEnumerator Initialize(IProgress<ProgressReport> progress)
+        {
+            yield break;
+        }
+
+        /// <summary>
+        /// Uninitialization after the scene is unloaded.
+        /// </summary>
+        public virtual IEnumerator Uninitialize(IProgress<ProgressReport> progress)
+        {
+            yield break;
+        }
+
+        public virtual void SceneAwake() { }
+        public virtual void SceneStart() { }
+        public virtual void SceneUpdate() { }
+        public virtual void SceneExit() { }
     }
 }

@@ -15,7 +15,7 @@ namespace Kott.Scopes
         public static ScopeHandler Instance { get; private set; }
         public RuntimeScope RootScope { get; private set; }
 
-        private readonly Dictionary<Type, ISingletonManager> _singletonManagerLookup = new();
+        private readonly Dictionary<Type, ISingleton> _singletonLookup = new();
 
         // used to reference the currently loading or unloading scope
         private RuntimeScope _activeScope;
@@ -36,46 +36,64 @@ namespace Kott.Scopes
             while (collectionStack.TryPop(out RuntimeScope runtimeScope))
             {
                 executionStack.Push(runtimeScope);
-                foreach (RuntimeScope child in runtimeScope.Children) collectionStack.Push(child);
+                foreach (RuntimeScope child in runtimeScope.Children)
+                {
+                    collectionStack.Push(child);
+                }
             }
 
             while (executionStack.TryPop(out RuntimeScope runtimeScope))
-                foreach (IManager manager in runtimeScope.Managers)
+            {
+                foreach (Manager manager in runtimeScope.Managers)
+                {
                     manager.SceneExit();
+                }
+            }
         }
 
-        private void RegisterSingletonManager(RuntimeScope runtimeScope, ISingletonManager singletonManager)
+        private void RegisterSingleton(RuntimeScope runtimeScope, ISingleton singleton)
         {
-            Type managerType = singletonManager.GetType();
-            _singletonManagerLookup.Add(managerType, singletonManager);
+            Type managerType = singleton.GetType();
+            _singletonLookup.Add(managerType, singleton);
             runtimeScope.SingleManagerTypes.Add(managerType);
 
             IEnumerable<Type> contractTypes = managerType.GetInterfaces()
-                .Where(t => t.IsGenericType && t.GetGenericTypeDefinition().IsEquivalentTo(typeof(IManagerContract<>)))
+                .Where(t => t.IsGenericType &&
+                            t.GetGenericTypeDefinition().IsEquivalentTo(typeof(ISingletonContract<>)))
                 .Select(t => t.GetGenericArguments()[0]);
 
             foreach (Type interfaceType in contractTypes)
             {
-                _singletonManagerLookup.Add(interfaceType, singletonManager);
+                _singletonLookup.Add(interfaceType, singleton);
                 runtimeScope.SingleManagerTypes.Add(interfaceType);
             }
         }
 
-        private void UnregisterSingletonManagers(RuntimeScope runtimeScope)
+        private void UnregisterSingletons(RuntimeScope runtimeScope)
         {
-            foreach (Type key in runtimeScope.SingleManagerTypes) _singletonManagerLookup.Remove(key);
+            foreach (Type key in runtimeScope.SingleManagerTypes)
+            {
+                _singletonLookup.Remove(key);
+            }
 
             runtimeScope.SingleManagerTypes.Clear();
         }
 
         private IEnumerator InitializeManagers(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
         {
-            if (runtimeScope.Managers.Count == 0) yield break;
-
-            foreach (IManager manager in runtimeScope.Managers)
+            if (runtimeScope.Managers.Count == 0)
             {
-                if (manager is not ISingletonManager singletonManager) continue;
-                RegisterSingletonManager(runtimeScope, singletonManager);
+                yield break;
+            }
+
+            foreach (Manager manager in runtimeScope.Managers)
+            {
+                if (manager is not ISingleton singleton)
+                {
+                    continue;
+                }
+
+                RegisterSingleton(runtimeScope, singleton);
             }
 
             SubProgress subProgress = new(progress);
@@ -83,7 +101,7 @@ namespace Kott.Scopes
 
             for (int i = 0; i < runtimeScope.Managers.Count; i++)
             {
-                IManager manager = runtimeScope.Managers[i];
+                Manager manager = runtimeScope.Managers[i];
 
                 subProgress.Start = new ProgressReport(i * subProgress.Scale, $"Initialize {manager.GetType().Name}");
                 progress?.Report(subProgress.Start);
@@ -95,16 +113,19 @@ namespace Kott.Scopes
 
         private IEnumerator UninitializeManagers(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
         {
-            if (runtimeScope.Managers.Count == 0) yield break;
+            if (runtimeScope.Managers.Count == 0)
+            {
+                yield break;
+            }
 
-            UnregisterSingletonManagers(runtimeScope);
+            UnregisterSingletons(runtimeScope);
 
             SubProgress subProgress = new(progress);
             subProgress.Scale = 1f / runtimeScope.Managers.Count;
 
             for (int i = 0; i < runtimeScope.Managers.Count; i++)
             {
-                IManager manager = runtimeScope.Managers[i];
+                Manager manager = runtimeScope.Managers[i];
 
                 subProgress.Start = new ProgressReport(i * subProgress.Scale, $"Uninitialize {manager.GetType().Name}");
                 progress?.Report(subProgress.Start);
@@ -116,7 +137,10 @@ namespace Kott.Scopes
 
         private static IEnumerator LoadScene(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
         {
-            if (!runtimeScope.Scope.SceneRef.RuntimeKeyIsValid()) yield break;
+            if (!runtimeScope.Scope.SceneRef.RuntimeKeyIsValid())
+            {
+                yield break;
+            }
 
             SubProgress subProgress = new(progress);
 
@@ -142,12 +166,18 @@ namespace Kott.Scopes
 
         private static IEnumerator UnloadScene(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
         {
-            if (!runtimeScope.Scope.SceneRef.IsValid()) yield break;
+            if (!runtimeScope.Scope.SceneRef.IsValid())
+            {
+                yield break;
+            }
 
             SubProgress subProgress = new(progress);
 
             // notify managers about scene change
-            foreach (IManager manager in runtimeScope.Managers) manager.SceneExit();
+            foreach (Manager manager in runtimeScope.Managers)
+            {
+                manager.SceneExit();
+            }
 
             // scene loading - 90%
             subProgress.Scale = 0.9f;
@@ -158,20 +188,11 @@ namespace Kott.Scopes
             yield return new WaitForAsyncOperationHandleWithProgress(unloadSceneHandle, subProgress);
         }
 
-        internal void SceneAwake(SceneRoot sceneRoot)
+        internal void SetupSceneRoot(SceneRoot sceneRoot)
         {
-            if (_activeScope == null) return;
-
             _activeScope.CollectSceneLinks();
-
-            foreach (IManager manager in _activeScope.Managers) manager.SceneAwake();
-        }
-
-        internal void SceneStart(SceneRoot sceneRoot)
-        {
-            if (_activeScope == null) return;
-
-            foreach (IManager manager in _activeScope.Managers) manager.SceneStart();
+            _activeScope.SceneRoot = sceneRoot;
+            sceneRoot.RuntimeScope = _activeScope;
         }
 
         public IEnumerator LoadScope(Scope scope, IProgress<ProgressReport> progress = null)
@@ -208,16 +229,16 @@ namespace Kott.Scopes
             _activeScope = null; // unset active loading scope
         }
 
-        public IEnumerator UnloadScopeRoutine(RuntimeScope runtimeScope, IProgress<ProgressReport> progress = null)
+        public IEnumerator UnloadScope(RuntimeScope runtimeScope, IProgress<ProgressReport> progress = null)
         {
             runtimeScope.Parent?.ChildrenInternal.Remove(runtimeScope);
             while (runtimeScope.ChildrenInternal.Count > 0)
             {
                 RuntimeScope child = runtimeScope.ChildrenInternal[0];
                 runtimeScope.ChildrenInternal.RemoveAt(0);
-                yield return UnloadScopeRoutine(child, progress);
+                yield return UnloadScope(child, progress);
             }
-            
+
             _activeScope = runtimeScope; // set active unloading scope
 
             progress?.Report(new ProgressReport(0f, $"Load Scope {runtimeScope.Scope.name}"));
@@ -238,11 +259,18 @@ namespace Kott.Scopes
             _activeScope = null; // unset active unloading scope
         }
 
-        public T GetSingletonManager<T>()
-            where T : ISingletonManager
+        public T GetSingleton<T>()
+            where T : ISingleton
         {
             Type key = typeof(T);
-            return (T)_singletonManagerLookup[key];
+            return (T)_singletonLookup[key];
+        }
+
+        [Obsolete]
+        public T GetManager<T>()
+            where T : ISingleton
+        {
+            return GetSingleton<T>();
         }
     }
 }

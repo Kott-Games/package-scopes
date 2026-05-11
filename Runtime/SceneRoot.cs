@@ -3,16 +3,34 @@
 namespace Kott.Scopes
 {
     [DefaultExecutionOrder(-9001)]
-    public class SceneRoot : MonoBehaviour
+    public sealed class SceneRoot : MonoBehaviour
     {
+        public RuntimeScope RuntimeScope { get; set; }
+        
         private void Awake()
         {
-            ScopeHandler.Instance.SceneAwake(this);
+            ScopeHandler.Instance.SetupSceneRoot(this);
+            
+            foreach (Manager manager in RuntimeScope.Managers)
+            {
+                manager.SceneAwake();
+            }
         }
 
         private void Start()
         {
-            ScopeHandler.Instance.SceneStart(this);
+            foreach (Manager manager in RuntimeScope.Managers)
+            {
+                manager.SceneStart();
+            }
+        }
+        
+        private void Update()
+        {
+            foreach (Manager manager in RuntimeScope.Managers)
+            {
+                manager.SceneUpdate();
+            }
         }
     }
 }
