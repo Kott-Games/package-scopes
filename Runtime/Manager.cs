@@ -5,6 +5,10 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
+    // TODO cannot be component
+    //      - MonoBehaviour
+    //      - ScriptableObject
+    //      - native class with ScriptableObject Settings/Wrapper
     public abstract class Manager : Component
     {
         public RuntimeScope RuntimeScope { get; internal set; }
