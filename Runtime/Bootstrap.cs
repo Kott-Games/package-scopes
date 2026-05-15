@@ -16,7 +16,7 @@ namespace Kott.Scopes
             yield return new WaitForAsyncOperationHandleWithProgress(loadScopeHandle, DebugProgressReporter.Instance);
 
             Scope scope = loadScopeHandle.Result;
-            yield return ScopeHandler.Instance.LoadScope(scope, null, DebugProgressReporter.Instance);
+            yield return ScopeHandler.Instance.LoadScope(scope, DebugProgressReporter.Instance);
         }
     }
 }

@@ -7,7 +7,6 @@ namespace Kott.Scopes
 {
     public sealed partial class RuntimeScope
     {
-        internal Scope Scope { get; }
         internal List<RuntimeScope> ChildrenInternal { get; } = new();
 
         internal GameObject ManagerContainer { get; }

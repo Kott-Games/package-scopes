@@ -5,6 +5,7 @@ namespace Kott.Scopes
 {
     public sealed partial class RuntimeScope
     {
+        public Scope Scope { get; }
         public RuntimeScope Parent { get; }
         public IReadOnlyList<RuntimeScope> Children { get; }
 

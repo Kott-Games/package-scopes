@@ -1,6 +1,6 @@
 namespace Kott.Scopes
 {
-    public struct Singleton<T>
+    public readonly struct Singleton<T>
         where T : ISingleton
     {
         // TODO cache instance

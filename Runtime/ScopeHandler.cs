@@ -102,6 +102,7 @@ namespace Kott.Scopes
             for (int i = 0; i < runtimeScope.Managers.Count; i++)
             {
                 Manager manager = runtimeScope.Managers[i];
+                manager.RuntimeScope  = runtimeScope;
 
                 subProgress.Start = new ProgressReport(i * subProgress.Scale, $"Initialize {manager.GetType().Name}");
                 progress?.Report(subProgress.Start);
@@ -195,13 +196,30 @@ namespace Kott.Scopes
             sceneRoot.RuntimeScope = _activeScope;
         }
 
-        public IEnumerator LoadScope(Scope scope, IProgress<ProgressReport> progress = null)
+        public IEnumerator LoadScope(Scope scope,
+            IProgress<ProgressReport> progress = null)
         {
-            return LoadScope(scope, null, progress);
+            return LoadScope(scope, parent: null, doneAction: null, progress);
         }
-
-        public IEnumerator LoadScope(Scope scope, RuntimeScope parent, IProgress<ProgressReport> progress = null)
+        
+        public IEnumerator LoadScope(Scope scope, RuntimeScope parent,
+            IProgress<ProgressReport> progress = null)
         {
+            return LoadScope(scope, parent, doneAction: null, progress);
+        }
+        
+        public IEnumerator LoadScope(Scope scope, Action<RuntimeScope> doneAction,
+            IProgress<ProgressReport> progress = null)
+        {
+            return LoadScope(scope, parent: null, doneAction, progress);
+        }
+        
+        public IEnumerator LoadScope(Scope scope, RuntimeScope parent, Action<RuntimeScope> doneAction,
+            IProgress<ProgressReport> progress = null)
+        {
+            // wait for current operation to finish
+            yield return new WaitWhile(() => _activeScope != null);
+            
             GameObject managerContainer = Instantiate(scope.ManagerContainer, transform);
             managerContainer.name = $"Managers '{scope.name}'";
 
@@ -228,15 +246,26 @@ namespace Kott.Scopes
             progress?.Report(new ProgressReport(1f, "Done"));
 
             _activeScope = null; // unset active loading scope
+            doneAction?.Invoke(runtimeScope);
         }
 
-        public IEnumerator UnloadScope(RuntimeScope runtimeScope, IProgress<ProgressReport> progress = null)
+        public IEnumerator UnloadScope(RuntimeScope runtimeScope,
+            IProgress<ProgressReport> progress = null)
         {
+            return UnloadScope(runtimeScope, doneAction: null, progress);
+        }
+        
+        public IEnumerator UnloadScope(RuntimeScope runtimeScope, Action doneAction,
+            IProgress<ProgressReport> progress = null)
+        {
+            // wait for current operation to finish
+            yield return new WaitWhile(() => _activeScope != null);
+            
             runtimeScope.Parent?.ChildrenInternal.Remove(runtimeScope);
             while (runtimeScope.ChildrenInternal.Count > 0)
             {
                 RuntimeScope child = runtimeScope.ChildrenInternal[0];
-                yield return UnloadScope(child, progress);
+                yield return UnloadScope(child, doneAction: null, progress);
             }
 
             _activeScope = runtimeScope; // set active unloading scope
@@ -259,6 +288,7 @@ namespace Kott.Scopes
             Destroy(runtimeScope.ManagerContainer);
 
             _activeScope = null; // unset active unloading scope
+            doneAction?.Invoke();
         }
 
         public T GetSingleton<T>()
