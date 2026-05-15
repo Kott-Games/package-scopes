@@ -23,7 +23,7 @@ namespace Kott.Scopes
         private static IEnumerator DelayRoutine(float delay, IProgress<ProgressReport> progress)
         {
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            float passedTime, startTime = Time.unscaledDeltaTime;
+            float passedTime, startTime = Time.unscaledTime;
             while ((passedTime = Time.unscaledTime - startTime) < delay)
             {
                 progress?.Report(new ProgressReport(passedTime / delay, info: null));

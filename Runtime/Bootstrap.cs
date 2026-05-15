@@ -12,11 +12,19 @@ namespace Kott.Scopes
 
         private IEnumerator Start()
         {
-            AsyncOperationHandle<Scope> loadScopeHandle = _scopeRef.LoadAssetAsync<Scope>();
-            yield return new WaitForAsyncOperationHandleWithProgress(loadScopeHandle, DebugProgressReporter.Instance);
+            SubProgress subProgress = new(DebugProgressReporter.Instance);
 
+            subProgress.Start = new ProgressReport(0f, "Loading root scope asset.");
+            subProgress.Scale = 0.5f;
+            
+            AsyncOperationHandle<Scope> loadScopeHandle = _scopeRef.LoadAssetAsync<Scope>();
+            yield return new WaitForAsyncOperationHandleWithProgress(loadScopeHandle, subProgress);
+
+            subProgress.Start = new ProgressReport(0.5f, "Loading root scope.");
+            subProgress.Scale = 0.5f;
+            
             Scope scope = loadScopeHandle.Result;
-            yield return ScopeHandler.Instance.LoadScope(scope, DebugProgressReporter.Instance);
+            yield return ScopeHandler.Instance.LoadScope(scope, subProgress);
         }
     }
 }
