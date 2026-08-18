@@ -32,5 +32,13 @@ namespace Kott.Scopes
                 manager.SceneUpdate();
             }
         }
+        
+        private void FixedUpdate()
+        {
+            foreach (Manager manager in RuntimeScope.Managers)
+            {
+                manager.SceneFixedUpdate();
+            }
+        }
     }
 }

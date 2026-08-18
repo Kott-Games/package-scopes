@@ -33,6 +33,9 @@ namespace Kott.Scopes
 
         public virtual void SceneUpdate()
         { }
+        
+        public virtual void SceneFixedUpdate()
+        { }
 
         public virtual void SceneExit()
         { }
