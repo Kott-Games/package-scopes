@@ -1,0 +1,27 @@
+{
+    "name": "Kott.Scopes.Addressables",
+    "rootNamespace": "Kott.Scopes",
+    "references": [
+        "GUID:654bc5fac8fa28e448395e5b8ed61856",
+        "GUID:b0f31b71235c2cf4ba6fdc19f8bc7546",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "KOTT_SCOPES_ADDRESSABLES"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.addressables",
+            "expression": "1.0.0",
+            "define": "KOTT_SCOPES_ADDRESSABLES"
+        }
+    ],
+    "noEngineReferences": false
+}

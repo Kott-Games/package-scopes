@@ -5,26 +5,75 @@ using UnityEngine.Pool;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Handles running of coroutines for other objects.
+    ///     Runs coroutines independent of any scope (they survive scope unloads). For coroutines that belong
+    ///     to a scope use <see cref="RuntimeScope.StartCoroutine" />.
     /// </summary>
+    /// <remarks>Created on first access like <see cref="ScopeHandler" />; a hand-placed instance is reused.</remarks>
+    [DisallowMultipleComponent]
+    [AddComponentMenu("Scopes/Coroutine Handler")]
     public sealed class CoroutineHandler : MonoBehaviour
     {
-        public static CoroutineHandler Instance { get; private set; }
+        private static CoroutineHandler _instance;
 
         private ObjectPool<CoroutineRunner> _pool;
 
+        /// <summary>The coroutine handler; created on first access.</summary>
+        /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
+        public static CoroutineHandler Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    ObjectUtility.FindOrCreateHost<CoroutineHandler>("Coroutines").Initialize();
+                }
+
+                return _instance;
+            }
+        }
+
         private void Awake()
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (_instance != null && _instance != this)
+            {
+                Debug.LogWarning($"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
+                Destroy(this);
+                return;
+            }
 
+            Initialize();
+        }
+
+        private void OnDestroy()
+        {
+            if (_instance == this)
+            {
+                _instance = null;
+            }
+        }
+
+        /// <summary>Runs <paramref name="routine" />. An exception is logged and ends only this routine.</summary>
+        public void Run(IEnumerator routine)
+        {
+            CoroutineRunner runner = _pool.Get();
+            runner.Run(_pool, routine);
+        }
+
+        private void Initialize()
+        {
+            if (_pool != null)
+            {
+                return;
+            }
+
+            _instance = this;
+            DontDestroyOnLoad(transform.root.gameObject);
             _pool = new ObjectPool<CoroutineRunner>(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
         }
 
         private CoroutineRunner PoolCreate()
         {
-            CoroutineRunner runner = gameObject.AddComponent<CoroutineRunner>();
-            return runner;
+            return gameObject.AddComponent<CoroutineRunner>();
         }
 
         private static void PoolGet(CoroutineRunner runner)
@@ -42,10 +91,10 @@ namespace Kott.Scopes
             Destroy(runner);
         }
 
-        public void Run(IEnumerator routine)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
         {
-            CoroutineRunner runner = _pool.Get();
-            runner.Run(_pool, routine);
+            _instance = null;
         }
     }
 }

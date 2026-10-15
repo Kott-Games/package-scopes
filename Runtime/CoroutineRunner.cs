@@ -4,6 +4,7 @@ using UnityEngine.Pool;
 
 namespace Kott.Scopes
 {
+    [AddComponentMenu("")]
     internal sealed class CoroutineRunner : MonoBehaviour
     {
         private IObjectPool<CoroutineRunner> _pool;
@@ -18,7 +19,9 @@ namespace Kott.Scopes
 
         private IEnumerator RunRoutine()
         {
-            yield return _routine;
+            // SafeRoutine: a throwing routine must not keep the runner out of the pool forever
+            yield return SafeRoutine.Run(_routine, Debug.LogException);
+            _routine = null;
             _pool.Release(this);
         }
     }
