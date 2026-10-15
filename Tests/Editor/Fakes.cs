@@ -31,7 +31,8 @@ namespace Kott.Scopes.Tests
         public static int IndexOf(string entry)
         {
             int index = Entries.IndexOf(entry);
-            Assert.That(index, Is.GreaterThanOrEqualTo(0), $"'{entry}' was not logged. Log: {string.Join(", ", Entries)}");
+            Assert.That(index, Is.GreaterThanOrEqualTo(0),
+                $"'{entry}' was not logged. Log: {string.Join(", ", Entries)}");
             return index;
         }
     }
@@ -110,13 +111,17 @@ namespace Kott.Scopes.Tests
     {
         public override IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
-            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService)) ? "Probe.Initialize:Foo" : "Probe.Initialize:NoFoo");
+            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService))
+                ? "Probe.Initialize:Foo"
+                : "Probe.Initialize:NoFoo");
             yield break;
         }
 
         public override IEnumerator Uninitialize(IProgress<ProgressReport> progress)
         {
-            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService)) ? "Probe.Uninitialize:Foo" : "Probe.Uninitialize:NoFoo");
+            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService))
+                ? "Probe.Uninitialize:Foo"
+                : "Probe.Uninitialize:NoFoo");
             yield break;
         }
     }
@@ -249,7 +254,9 @@ namespace Kott.Scopes.Tests
 
         private static string Describe(List<(LogType Type, string Message)> entries)
         {
-            return entries.Count == 0 ? "none" : string.Join(" | ", entries.ConvertAll(entry => $"[{entry.Type}] {entry.Message}"));
+            return entries.Count == 0
+                ? "none"
+                : string.Join(" | ", entries.ConvertAll(entry => $"[{entry.Type}] {entry.Message}"));
         }
     }
 }

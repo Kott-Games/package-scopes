@@ -12,8 +12,11 @@ namespace Kott.Scopes
     [Serializable]
     public sealed class DebugDelayManager : Manager
     {
-        [SerializeField] private float _initializeDelay = 1f;
-        [SerializeField] private float _uninitializeDelay = 1f;
+        [SerializeField]
+        private float _initializeDelay = 1f;
+
+        [SerializeField]
+        private float _uninitializeDelay = 1f;
 
         /// <inheritdoc />
         public override IEnumerator Initialize(IProgress<ProgressReport> progress)

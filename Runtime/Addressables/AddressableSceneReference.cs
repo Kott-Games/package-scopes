@@ -15,7 +15,8 @@ namespace Kott.Scopes
     [Serializable]
     public sealed class AddressableSceneReference : SceneReference
     {
-        [SerializeField] private AssetReference _scene = new(string.Empty);
+        [SerializeField]
+        private AssetReference _scene = new(string.Empty);
 
         /// <summary>Creates an unassigned reference.</summary>
         public AddressableSceneReference()
@@ -95,7 +96,8 @@ namespace Kott.Scopes
             }
 
             // keep the handle until we checked the result (auto release would invalidate it on completion)
-            AsyncOperationHandle<SceneInstance> unloadHandle = Addressables.UnloadSceneAsync(_handle, autoReleaseHandle: false);
+            AsyncOperationHandle<SceneInstance> unloadHandle =
+                Addressables.UnloadSceneAsync(_handle, autoReleaseHandle: false);
             yield return new WaitForAsyncOperationHandleWithProgress(unloadHandle, progress);
 
             AsyncOperationStatus status = unloadHandle.Status;

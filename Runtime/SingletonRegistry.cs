@@ -14,7 +14,7 @@ namespace Kott.Scopes
     /// </remarks>
     public sealed class SingletonRegistry
     {
-        private static readonly List<SingletonRegistry> Overrides = new();
+        private static readonly List<SingletonRegistry> _overrides = new();
 
         private readonly Dictionary<Type, Entry> _entries = new();
 
@@ -22,7 +22,7 @@ namespace Kott.Scopes
         public static SingletonRegistry Default { get; private set; } = new();
 
         /// <summary>The registry <see cref="Singleton{T}" /> resolves from: the innermost test override, else <see cref="Default" />.</summary>
-        public static SingletonRegistry Current => Overrides.Count > 0 ? Overrides[^1] : Default;
+        public static SingletonRegistry Current => _overrides.Count > 0 ? _overrides[^1] : Default;
 
         /// <summary>
         ///     Registers <paramref name="singleton" /> under its concrete type and all of its singleton contracts.
@@ -68,7 +68,8 @@ namespace Kott.Scopes
 
             if (!key.IsInstanceOfType(singleton))
             {
-                throw new ArgumentException($"{singleton.GetType().Name} is not assignable to {key.Name}.", nameof(singleton));
+                throw new ArgumentException($"{singleton.GetType().Name} is not assignable to {key.Name}.",
+                    nameof(singleton));
             }
 
             ThrowIfRegistered(key, singleton, owner);
@@ -137,7 +138,8 @@ namespace Kott.Scopes
             List<Type> contracts = new();
             foreach (Type interfaceType in type.GetInterfaces())
             {
-                if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(ISingletonContract<>))
+                if (interfaceType.IsGenericType &&
+                    interfaceType.GetGenericTypeDefinition() == typeof(ISingletonContract<>))
                 {
                     contracts.Add(interfaceType.GetGenericArguments()[0]);
                 }
@@ -148,18 +150,18 @@ namespace Kott.Scopes
 
         internal static void PushOverride(SingletonRegistry registry)
         {
-            Overrides.Add(registry ?? throw new ArgumentNullException(nameof(registry)));
+            _overrides.Add(registry ?? throw new ArgumentNullException(nameof(registry)));
         }
 
         internal static void PopOverride(SingletonRegistry registry)
         {
-            if (Overrides.Count == 0 || Overrides[^1] != registry)
+            if (_overrides.Count == 0 || _overrides[^1] != registry)
             {
                 throw new InvalidOperationException(
                     "Singleton registry overrides must be removed in reverse order of creation (dispose nested SingletonTestScopes innermost first).");
             }
 
-            Overrides.RemoveAt(Overrides.Count - 1);
+            _overrides.RemoveAt(_overrides.Count - 1);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -167,7 +169,7 @@ namespace Kott.Scopes
         {
             // play mode without domain reload must not see registrations from the previous session
             Default = new SingletonRegistry();
-            Overrides.Clear();
+            _overrides.Clear();
         }
 
         private void ThrowIfRegistered(Type key, ISingleton singleton, object owner)
