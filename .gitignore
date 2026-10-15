@@ -1,2 +1,18 @@
-# MacOS Stuff
-*.DS_Store
+# OS
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vs/
+.idea/
+*.user
+*.DotSettings.user
+
+# CI host project (TestProject~) generated folders
+TestProject~/Library/
+TestProject~/Temp/
+TestProject~/Logs/
+TestProject~/UserSettings/
+TestProject~/obj/
