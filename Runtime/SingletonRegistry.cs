@@ -49,7 +49,7 @@ namespace Kott.Scopes
 
             foreach (Type key in keys)
             {
-                ThrowIfRegistered(key, owner);
+                ThrowIfRegistered(key, singleton, owner);
             }
 
             foreach (Type key in keys)
@@ -71,7 +71,7 @@ namespace Kott.Scopes
                 throw new ArgumentException($"{singleton.GetType().Name} is not assignable to {key.Name}.", nameof(singleton));
             }
 
-            ThrowIfRegistered(key, owner);
+            ThrowIfRegistered(key, singleton, owner);
             _entries.Add(key, new Entry(singleton, owner));
         }
 
@@ -170,13 +170,13 @@ namespace Kott.Scopes
             Overrides.Clear();
         }
 
-        private void ThrowIfRegistered(Type key, object owner)
+        private void ThrowIfRegistered(Type key, ISingleton singleton, object owner)
         {
             if (_entries.TryGetValue(key, out Entry existing))
             {
                 throw new InvalidOperationException(
-                    $"Singleton '{key.FullName}' is provided twice: by {existing.Singleton.GetType().Name} from {existing.Owner} " +
-                    $"and by {owner}. Each singleton type may only be provided once at a time.");
+                    $"Singleton '{key.FullName}' is provided twice: by {existing.Singleton.GetType().Name} ({existing.Owner}) " +
+                    $"and by {singleton.GetType().Name} ({owner}). Each singleton type may only be provided once at a time.");
             }
         }
 

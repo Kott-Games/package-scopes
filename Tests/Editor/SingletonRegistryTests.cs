@@ -78,7 +78,8 @@ namespace Kott.Scopes.Tests
             InvalidOperationException exception =
                 Assert.Throws<InvalidOperationException>(() => _registry.Register(OwnerB, new FooBarManager()));
 
-            Assert.That(exception.Message, Does.Contain("IFooService").And.Contain(OwnerA).And.Contain(OwnerB));
+            Assert.That(exception.Message, Does.Contain("IFooService").And.Contain(OwnerA).And.Contain(OwnerB)
+                .And.Contain(nameof(FooManager)).And.Contain(nameof(FooBarManager)));
         }
 
         [Test]

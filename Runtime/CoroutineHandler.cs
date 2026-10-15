@@ -17,6 +17,9 @@ namespace Kott.Scopes
 
         private ObjectPool<CoroutineRunner> _pool;
 
+        /// <summary>Receives exceptions of failed routines. Replaceable for tests.</summary>
+        internal ILogger Logger { get; set; } = Debug.unityLogger;
+
         /// <summary>The coroutine handler; created on first access.</summary>
         /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
         public static CoroutineHandler Instance
@@ -56,7 +59,7 @@ namespace Kott.Scopes
         public void Run(IEnumerator routine)
         {
             CoroutineRunner runner = _pool.Get();
-            runner.Run(_pool, routine);
+            runner.Run(_pool, routine, Logger);
         }
 
         private void Initialize()

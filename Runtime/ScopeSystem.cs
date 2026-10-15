@@ -15,6 +15,7 @@ namespace Kott.Scopes
     {
         private readonly SingletonRegistry _registry;
         private readonly Action<IEnumerator> _startRoutine;
+        private readonly ILogger _logger;
         private readonly Transform _rootParent;
         private readonly Queue<PendingOperation> _queue = new();
         private readonly List<RuntimeScope> _scopes = new();
@@ -25,8 +26,10 @@ namespace Kott.Scopes
         /// <param name="registry">Registry the managers' singletons are registered in.</param>
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
-        public ScopeSystem(SingletonRegistry registry, Action<IEnumerator> startRoutine, Transform rootParent)
+        /// <param name="logger">Receives failures and cleanup errors (<see cref="Debug.unityLogger" /> at runtime).</param>
+        public ScopeSystem(SingletonRegistry registry, Action<IEnumerator> startRoutine, Transform rootParent, ILogger logger)
         {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _startRoutine = startRoutine ?? throw new ArgumentNullException(nameof(startRoutine));
             _rootParent = rootParent;
@@ -140,7 +143,7 @@ namespace Kott.Scopes
         // only reached through a bug in this class: manager and loader code is isolated by SafeRoutine
         private void OnProcessingFailed(Exception exception)
         {
-            Debug.LogException(exception);
+            _logger.LogException(exception);
             ActivatingScope = null;
             _current?.Operation.Complete(exception);
             _current = null;
@@ -310,13 +313,13 @@ namespace Kott.Scopes
                     runtimeScope.InvokeSceneExit();
                 }
 
-                yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Unload(null), Debug.LogException);
+                yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Unload(null), _logger.LogException);
             }
 
             for (int i = initializedCount - 1; i >= 0; i--)
             {
                 Manager manager = runtimeScope.Managers[i];
-                yield return SafeRoutine.Run(() => manager.Uninitialize(null), Debug.LogException);
+                yield return SafeRoutine.Run(() => manager.Uninitialize(null), _logger.LogException);
             }
 
             _registry.Unregister(runtimeScope);
@@ -358,7 +361,7 @@ namespace Kott.Scopes
 
             if (error != null)
             {
-                Debug.LogException(error);
+                _logger.LogException(error);
             }
 
             operation.Complete(error);
@@ -417,14 +420,14 @@ namespace Kott.Scopes
             runtimeScope.State = finalState;
         }
 
-        private static void Fail(ScopeOperation operation, Exception exception)
+        private void Fail(ScopeOperation operation, Exception exception)
         {
-            Debug.LogError($"[Scopes] {operation.Type} of scope '{(operation.Scope != null ? operation.Scope.name : "?")}' " +
+            _logger.LogError("Scopes", $"{operation.Type} of scope '{(operation.Scope != null ? operation.Scope.name : "?")}' " +
                            $"failed: {exception}");
             operation.Complete(exception);
         }
 
-        private static void Raise(Action<RuntimeScope> handler, RuntimeScope runtimeScope)
+        private void Raise(Action<RuntimeScope> handler, RuntimeScope runtimeScope)
         {
             try
             {
@@ -432,7 +435,7 @@ namespace Kott.Scopes
             }
             catch (Exception exception)
             {
-                Debug.LogException(exception);
+                _logger.LogException(exception);
             }
         }
 

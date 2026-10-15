@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Kott.Utilities.Progress;
 using NUnit.Framework;
 using UnityEngine;
@@ -196,6 +197,59 @@ namespace Kott.Scopes.Tests
         public void Report(ProgressReport value)
         {
             Values.Add(value.Progress);
+        }
+    }
+
+    /// <summary>
+    ///     Records log output instead of printing it, so expected failures don't show up as console errors.
+    ///     Expectations are checked by <see cref="Verify" />, which also fails on unexpected errors.
+    /// </summary>
+    internal sealed class RecordingLogHandler : ILogHandler
+    {
+        private readonly List<(LogType Type, string Message)> _entries = new();
+        private readonly List<(LogType Type, string Pattern)> _expectations = new();
+
+        public RecordingLogHandler()
+        {
+            Logger = new Logger(this);
+        }
+
+        public ILogger Logger { get; }
+
+        public void LogFormat(LogType logType, UnityEngine.Object context, string format, params object[] args)
+        {
+            _entries.Add((logType, string.Format(format, args)));
+        }
+
+        public void LogException(Exception exception, UnityEngine.Object context)
+        {
+            _entries.Add((LogType.Exception, exception.ToString()));
+        }
+
+        /// <summary>Expects a log of <paramref name="type" /> matching <paramref name="pattern" /> by the end of the test.</summary>
+        public void Expect(LogType type, string pattern)
+        {
+            _expectations.Add((type, pattern));
+        }
+
+        public void Verify()
+        {
+            List<(LogType Type, string Message)> remaining = new(_entries);
+            foreach ((LogType type, string pattern) in _expectations)
+            {
+                int index = remaining.FindIndex(entry => entry.Type == type && Regex.IsMatch(entry.Message, pattern));
+                Assert.That(index, Is.GreaterThanOrEqualTo(0),
+                    $"Expected {type} log matching '{pattern}'. Logged: {Describe(_entries)}");
+                remaining.RemoveAt(index);
+            }
+
+            remaining.RemoveAll(entry => entry.Type is LogType.Log or LogType.Warning);
+            Assert.That(remaining, Is.Empty, $"Unexpected error logs: {Describe(remaining)}");
+        }
+
+        private static string Describe(List<(LogType Type, string Message)> entries)
+        {
+            return entries.Count == 0 ? "none" : string.Join(" | ", entries.ConvertAll(entry => $"[{entry.Type}] {entry.Message}"));
         }
     }
 }

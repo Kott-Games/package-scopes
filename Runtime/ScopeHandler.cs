@@ -131,7 +131,7 @@ namespace Kott.Scopes
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _system = new ScopeSystem(SingletonRegistry.Default, routine => StartCoroutine(routine), transform);
+            _system = new ScopeSystem(SingletonRegistry.Default, routine => StartCoroutine(routine), transform, Debug.unityLogger);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

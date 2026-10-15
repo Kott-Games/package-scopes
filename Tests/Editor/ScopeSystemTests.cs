@@ -1,10 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
 namespace Kott.Scopes.Tests
@@ -15,6 +13,7 @@ namespace Kott.Scopes.Tests
         private readonly List<IEnumerator> _routines = new();
         private readonly List<Object> _createdObjects = new();
         private SingletonRegistry _registry;
+        private RecordingLogHandler _log;
         private ScopeSystem _system;
 
         [SetUp]
@@ -23,7 +22,8 @@ namespace Kott.Scopes.Tests
             TestLog.Clear();
             _registry = new SingletonRegistry();
             TestLog.Registry = _registry;
-            _system = new ScopeSystem(_registry, _routines.Add, rootParent: null);
+            _log = new RecordingLogHandler();
+            _system = new ScopeSystem(_registry, _routines.Add, rootParent: null, _log.Logger);
         }
 
         [TearDown]
@@ -42,6 +42,8 @@ namespace Kott.Scopes.Tests
             _createdObjects.Clear();
             _routines.Clear();
             TestLog.Clear();
+
+            _log.Verify();
         }
 
         [Test]
@@ -244,7 +246,7 @@ namespace Kott.Scopes.Tests
             RecordingManager failing = Recording("Bad");
             failing.ThrowOnInitialize = true;
             Scope scope = CreateScope("S", null, new FooManager { Id = "Foo" }, failing, Recording("After"));
-            LogAssert.Expect(LogType.Error, new Regex("Load of scope 'S' failed.*Bad failed to initialize"));
+            _log.Expect(LogType.Error, "Load of scope 'S' failed.*Bad failed to initialize");
 
             ScopeOperation load = _system.LoadScope(scope, null, null);
             RunAll();
@@ -268,7 +270,7 @@ namespace Kott.Scopes.Tests
             // regression: an exception in Initialize used to deadlock every later load
             RecordingManager failing = Recording("Bad");
             failing.ThrowOnInitialize = true;
-            LogAssert.Expect(LogType.Error, new Regex("Load of scope 'Broken' failed"));
+            _log.Expect(LogType.Error, "Load of scope 'Broken' failed");
             _system.LoadScope(CreateScope("Broken", null, failing), null, null);
             RunAll();
 
@@ -282,7 +284,7 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Load_InitializeThrowsSynchronously_FailsLoad()
         {
-            LogAssert.Expect(LogType.Error, new Regex("thrown synchronously"));
+            _log.Expect(LogType.Error, "thrown synchronously");
 
             ScopeOperation load = _system.LoadScope(CreateScope("S", null, new ThrowImmediatelyManager()), null, null);
             RunAll();
@@ -295,7 +297,7 @@ namespace Kott.Scopes.Tests
         public void Load_SceneLoadFails_UninitializesAllManagersAndUnloadsScene()
         {
             Scope scope = CreateScope("S", new FakeSceneReference("Scene", failLoad: true), Recording("A"), Recording("B"));
-            LogAssert.Expect(LogType.Error, new Regex("Scene failed to load"));
+            _log.Expect(LogType.Error, "Scene failed to load");
 
             ScopeOperation load = _system.LoadScope(scope, null, null);
             RunAll();
@@ -312,7 +314,7 @@ namespace Kott.Scopes.Tests
         public void Load_DuplicateSingleton_FailsNamingTypeAndBothScopes()
         {
             RuntimeScope root = LoadAndRun(CreateScope("Root", null, new FooManager()));
-            LogAssert.Expect(LogType.Error, new Regex("IFooService"));
+            _log.Expect(LogType.Error, "IFooService");
 
             ScopeOperation load = _system.LoadScope(CreateScope("Child", null, new FooBarManager()), root, null);
             RunAll();
@@ -328,7 +330,7 @@ namespace Kott.Scopes.Tests
         {
             Scope scope = CreateScope("S", null);
             LoadAndRun(scope);
-            LogAssert.Expect(LogType.Error, new Regex("already loaded"));
+            _log.Expect(LogType.Error, "already loaded");
 
             ScopeOperation second = _system.LoadScope(scope, null, null);
             RunAll();
@@ -341,7 +343,7 @@ namespace Kott.Scopes.Tests
         public void Load_MissingManagerEntry_Fails()
         {
             Scope scope = CreateScope("S", null, Recording("A"), null);
-            LogAssert.Expect(LogType.Error, new Regex("missing manager at index 1"));
+            _log.Expect(LogType.Error, "missing manager at index 1");
 
             ScopeOperation load = _system.LoadScope(scope, null, null);
             RunAll();
@@ -356,7 +358,7 @@ namespace Kott.Scopes.Tests
             RecordingManager failing = Recording("Bad");
             failing.ThrowOnUninitialize = true;
             RuntimeScope runtimeScope = LoadAndRun(CreateScope("S", null, Recording("A"), failing));
-            LogAssert.Expect(LogType.Exception, new Regex("Bad failed to uninitialize"));
+            _log.Expect(LogType.Exception, "Bad failed to uninitialize");
 
             ScopeOperation unload = _system.UnloadScope(runtimeScope, null);
             RunAll();
@@ -373,7 +375,7 @@ namespace Kott.Scopes.Tests
             RuntimeScope runtimeScope = LoadAndRun(CreateScope("S", null));
             _system.UnloadScope(runtimeScope, null);
             RunAll();
-            LogAssert.Expect(LogType.Error, new Regex("Cannot unload scope 'S'"));
+            _log.Expect(LogType.Error, "Cannot unload scope 'S'");
 
             ScopeOperation second = _system.UnloadScope(runtimeScope, null);
             RunAll();

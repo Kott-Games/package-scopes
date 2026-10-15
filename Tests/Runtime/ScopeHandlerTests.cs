@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Kott.Utilities.Progress;
 using NUnit.Framework;
@@ -181,20 +182,25 @@ namespace Kott.Scopes.Tests
         }
 
         [UnityTest]
-        public IEnumerator CoroutineHandler_RoutineThrows_LogsAndKeepsWorking()
+        public IEnumerator CoroutineHandler_RoutineThrows_LogsAndReusesRunner()
         {
             // regression: a throwing routine kept its runner out of the pool forever
-            LogAssert.Expect(LogType.Exception, new Regex("boom"));
+            ExceptionRecorder recorder = new();
+            CoroutineHandler handler = CoroutineHandler.Instance;
+            handler.Logger = new Logger(recorder);
             bool secondRan = false;
 
-            CoroutineHandler.Instance.Run(Throwing());
+            handler.Run(Throwing());
             yield return null;
             yield return null;
-            CoroutineHandler.Instance.Run(Setting());
+            handler.Run(Setting());
             yield return null;
 
+            Assert.That(recorder.Exceptions, Has.Count.EqualTo(1));
+            Assert.That(recorder.Exceptions[0].Message, Is.EqualTo("boom"));
             Assert.That(secondRan, Is.True);
-            Object.DestroyImmediate(CoroutineHandler.Instance.gameObject);
+            Assert.That(handler.GetComponents<CoroutineRunner>().Length, Is.EqualTo(1), "runner returned to the pool and reused");
+            Object.DestroyImmediate(handler.gameObject);
 
             IEnumerator Throwing()
             {
@@ -206,6 +212,21 @@ namespace Kott.Scopes.Tests
             {
                 secondRan = true;
                 yield break;
+            }
+        }
+
+        private sealed class ExceptionRecorder : ILogHandler
+        {
+            public readonly List<Exception> Exceptions = new();
+
+            public void LogFormat(LogType logType, Object context, string format, params object[] args)
+            {
+                Debug.unityLogger.logHandler.LogFormat(logType, context, format, args);
+            }
+
+            public void LogException(Exception exception, Object context)
+            {
+                Exceptions.Add(exception);
             }
         }
 

@@ -9,10 +9,12 @@ namespace Kott.Scopes
     {
         private IObjectPool<CoroutineRunner> _pool;
         private IEnumerator _routine;
+        private ILogger _logger;
 
-        public void Run(IObjectPool<CoroutineRunner> pool, IEnumerator routine)
+        public void Run(IObjectPool<CoroutineRunner> pool, IEnumerator routine, ILogger logger)
         {
             _pool = pool;
+            _logger = logger;
             _routine = routine;
             StartCoroutine(RunRoutine());
         }
@@ -20,7 +22,7 @@ namespace Kott.Scopes
         private IEnumerator RunRoutine()
         {
             // SafeRoutine: a throwing routine must not keep the runner out of the pool forever
-            yield return SafeRoutine.Run(_routine, Debug.LogException);
+            yield return SafeRoutine.Run(_routine, _logger.LogException);
             _routine = null;
             _pool.Release(this);
         }
