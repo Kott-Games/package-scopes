@@ -186,6 +186,13 @@ namespace Kott.Scopes
                 yield break;
             }
 
+            if (scope.DeclaredParent != null && (parent == null || parent.Scope != scope.DeclaredParent))
+            {
+                _logger.LogWarning("Scopes",
+                    $"Scope '{scope.name}' declares parent '{scope.DeclaredParent.name}' but is loaded " +
+                    (parent != null ? $"under {parent}." : "as the root scope."));
+            }
+
             // managers are [SerializeReference] objects in the asset: work on a copy so runtime state stays out of it
             Scope instance = Object.Instantiate(scope);
             instance.name = scope.name;

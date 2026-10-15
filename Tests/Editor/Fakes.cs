@@ -237,6 +237,14 @@ namespace Kott.Scopes.Tests
             _expectations.Add((type, pattern));
         }
 
+        /// <summary>Fails if a log of <paramref name="type" /> matching <paramref name="pattern" /> was recorded.</summary>
+        public void AssertNotLogged(LogType type, string pattern)
+        {
+            List<(LogType Type, string Message)> matches =
+                _entries.FindAll(entry => entry.Type == type && Regex.IsMatch(entry.Message, pattern));
+            Assert.That(matches, Is.Empty, $"Unexpected {type} log matching '{pattern}': {Describe(matches)}");
+        }
+
         public void Verify()
         {
             List<(LogType Type, string Message)> remaining = new(_entries);

@@ -30,6 +30,12 @@ namespace Kott.Scopes
             _scenePath = scenePath;
         }
 
+        internal BuildSceneReference(string scenePath, string sceneGuid)
+        {
+            _scenePath = scenePath;
+            _sceneGuid = sceneGuid;
+        }
+
         /// <summary>Project-relative path of the scene asset.</summary>
         public string ScenePath => _scenePath;
 

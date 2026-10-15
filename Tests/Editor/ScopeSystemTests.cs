@@ -126,6 +126,43 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
+        public void Load_UnderDeclaredParent_DoesNotWarn()
+        {
+            Scope parentScope = CreateScope("Parent", null);
+            Scope childScope = CreateScope("Child", null);
+            childScope.SetDeclaredParent(parentScope);
+
+            RuntimeScope parent = LoadAndRun(parentScope);
+            LoadAndRun(childScope, parent);
+
+            _log.AssertNotLogged(LogType.Warning, "declares parent");
+        }
+
+        [Test]
+        public void Load_UnderOtherThanDeclaredParent_WarnsAndLoads()
+        {
+            Scope declared = CreateScope("Declared", null);
+            Scope childScope = CreateScope("Child", null);
+            childScope.SetDeclaredParent(declared);
+            _log.Expect(LogType.Warning, "Scope 'Child' declares parent 'Declared' but is loaded under scope 'Other'");
+
+            RuntimeScope other = LoadAndRun(CreateScope("Other", null));
+            RuntimeScope child = LoadAndRun(childScope, other);
+
+            Assert.That(child.Parent, Is.SameAs(other));
+        }
+
+        [Test]
+        public void Load_AsRootWithDeclaredParent_Warns()
+        {
+            Scope childScope = CreateScope("Child", null);
+            childScope.SetDeclaredParent(CreateScope("Declared", null));
+            _log.Expect(LogType.Warning, "Scope 'Child' declares parent 'Declared' but is loaded as the root scope");
+
+            LoadAndRun(childScope);
+        }
+
+        [Test]
         public void Load_Progress_IsMonotonicFromZeroToOne()
         {
             RecordingManager slow = Recording("A");
