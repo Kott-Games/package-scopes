@@ -39,7 +39,8 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning($"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
+                Debug.LogWarning(
+                    $"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
                 Destroy(this);
                 return;
             }

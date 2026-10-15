@@ -10,8 +10,11 @@ namespace Kott.Scopes
     [CreateAssetMenu(fileName = "NewScope", menuName = "Scopes/Scope", order = 0)]
     public sealed class Scope : ScriptableObject
     {
-        [SerializeReference] private SceneReference _scene;
-        [SerializeReference] private List<Manager> _managers = new();
+        [SerializeReference]
+        private SceneReference _scene;
+
+        [SerializeReference]
+        private List<Manager> _managers = new();
 
         /// <summary>The scene loaded with this scope, or <c>null</c> for a scene-less scope.</summary>
         public SceneReference Scene => _scene;

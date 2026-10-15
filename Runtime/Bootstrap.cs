@@ -9,10 +9,12 @@ namespace Kott.Scopes
     [AddComponentMenu("Scopes/Bootstrap")]
     public sealed class Bootstrap : MonoBehaviour
     {
-        [SerializeField] private Scope _rootScope;
+        [SerializeField]
+        private Scope _rootScope;
 
         [Tooltip("Log loading progress to the console (editor and development builds).")]
-        [SerializeField] private bool _logProgress;
+        [SerializeField]
+        private bool _logProgress;
 
         /// <summary>The scope loaded on start. Changing it after <c>Start</c> has no effect.</summary>
         public Scope RootScope
@@ -32,7 +34,8 @@ namespace Kott.Scopes
                 return;
             }
 
-            Operation = ScopeHandler.Instance.LoadScope(_rootScope, progress: _logProgress ? DebugProgressReporter.Instance : null);
+            Operation = ScopeHandler.Instance.LoadScope(_rootScope,
+                progress: _logProgress ? DebugProgressReporter.Instance : null);
         }
     }
 }

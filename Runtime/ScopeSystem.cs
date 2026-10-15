@@ -27,7 +27,8 @@ namespace Kott.Scopes
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
         /// <param name="logger">Receives failures and cleanup errors (<see cref="Debug.unityLogger" /> at runtime).</param>
-        public ScopeSystem(SingletonRegistry registry, Action<IEnumerator> startRoutine, Transform rootParent, ILogger logger)
+        public ScopeSystem(SingletonRegistry registry, Action<IEnumerator> startRoutine, Transform rootParent,
+            ILogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -162,7 +163,8 @@ namespace Kott.Scopes
 
             if (scope == null)
             {
-                Fail(operation, new InvalidOperationException("The Scope asset was destroyed before it could be loaded."));
+                Fail(operation,
+                    new InvalidOperationException("The Scope asset was destroyed before it could be loaded."));
                 yield break;
             }
 
@@ -170,7 +172,8 @@ namespace Kott.Scopes
             {
                 if (existing.Scope == scope)
                 {
-                    Fail(operation, new InvalidOperationException($"Scope '{scope.name}' is already loaded ({existing.State})."));
+                    Fail(operation,
+                        new InvalidOperationException($"Scope '{scope.name}' is already loaded ({existing.State})."));
                     yield break;
                 }
             }
@@ -246,17 +249,20 @@ namespace Kott.Scopes
                     Manager manager = managers[i];
                     manager.RuntimeScope = runtimeScope;
 
-                    managerProgress.Start = new ProgressReport(i * managerProgress.Scale, $"Initialize {manager.GetType().Name}");
+                    managerProgress.Start =
+                        new ProgressReport(i * managerProgress.Scale, $"Initialize {manager.GetType().Name}");
                     managerProgress.Report(new ProgressReport(0f, null));
 
-                    yield return SafeRoutine.Run(() => manager.Initialize(managerProgress), exception => error = exception);
+                    yield return SafeRoutine.Run(() => manager.Initialize(managerProgress),
+                        exception => error = exception);
                     if (error != null)
                     {
                         break;
                     }
 
                     initializedCount++;
-                    managerProgress.Report(new ProgressReport(1f, null)); // in case the manager doesn't report completion
+                    managerProgress.Report(new ProgressReport(1f,
+                        null)); // in case the manager doesn't report completion
                 }
             }
 
@@ -281,7 +287,8 @@ namespace Kott.Scopes
                 if (error == null)
                 {
                     ActivatingScope = runtimeScope;
-                    yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Load(sceneProgress), exception => error = exception);
+                    yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Load(sceneProgress),
+                        exception => error = exception);
                     ActivatingScope = null;
 
                     runtimeScope.SceneLoaded = true; // also on failure: a partially loaded scene must be unloaded
@@ -367,7 +374,8 @@ namespace Kott.Scopes
             operation.Complete(error);
         }
 
-        private IEnumerator UnloadSingle(RuntimeScope runtimeScope, IProgress<ProgressReport> progress, List<Exception> errors)
+        private IEnumerator UnloadSingle(RuntimeScope runtimeScope, IProgress<ProgressReport> progress,
+            List<Exception> errors)
         {
             runtimeScope.State = ScopeState.Unloading;
             progress.Report(new ProgressReport(0f, $"Unload scope '{runtimeScope.Name}'"));
@@ -422,8 +430,9 @@ namespace Kott.Scopes
 
         private void Fail(ScopeOperation operation, Exception exception)
         {
-            _logger.LogError("Scopes", $"{operation.Type} of scope '{(operation.Scope != null ? operation.Scope.name : "?")}' " +
-                           $"failed: {exception}");
+            _logger.LogError("Scopes",
+                $"{operation.Type} of scope '{(operation.Scope != null ? operation.Scope.name : "?")}' " +
+                $"failed: {exception}");
             operation.Complete(exception);
         }
 

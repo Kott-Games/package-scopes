@@ -13,10 +13,12 @@ namespace Kott.Scopes
     [Serializable]
     public sealed class BuildSceneReference : SceneReference
     {
-        [SerializeField] private string _scenePath;
+        [SerializeField]
+        private string _scenePath;
 
         // editor only: keeps the reference intact when the scene asset is moved (see BuildSceneReferenceDrawer)
-        [SerializeField] private string _sceneGuid;
+        [SerializeField]
+        private string _sceneGuid;
 
         /// <summary>Creates an unassigned reference.</summary>
         public BuildSceneReference()

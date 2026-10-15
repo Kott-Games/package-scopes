@@ -199,7 +199,8 @@ namespace Kott.Scopes.Tests
             Assert.That(recorder.Exceptions, Has.Count.EqualTo(1));
             Assert.That(recorder.Exceptions[0].Message, Is.EqualTo("boom"));
             Assert.That(secondRan, Is.True);
-            Assert.That(handler.GetComponents<CoroutineRunner>().Length, Is.EqualTo(1), "runner returned to the pool and reused");
+            Assert.That(handler.GetComponents<CoroutineRunner>().Length, Is.EqualTo(1),
+                "runner returned to the pool and reused");
             Object.DestroyImmediate(handler.gameObject);
 
             IEnumerator Throwing()

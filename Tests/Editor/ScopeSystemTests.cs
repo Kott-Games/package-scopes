@@ -171,7 +171,8 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Unload_Singletons_RemovedAfterUninitialize()
         {
-            RuntimeScope runtimeScope = LoadAndRun(CreateScope("S", null, new RegistryProbeManager(), new FooManager()));
+            RuntimeScope runtimeScope =
+                LoadAndRun(CreateScope("S", null, new RegistryProbeManager(), new FooManager()));
 
             _system.UnloadScope(runtimeScope, null);
             RunAll();
@@ -296,7 +297,8 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Load_SceneLoadFails_UninitializesAllManagersAndUnloadsScene()
         {
-            Scope scope = CreateScope("S", new FakeSceneReference("Scene", failLoad: true), Recording("A"), Recording("B"));
+            Scope scope = CreateScope("S", new FakeSceneReference("Scene", failLoad: true), Recording("A"),
+                Recording("B"));
             _log.Expect(LogType.Error, "Scene failed to load");
 
             ScopeOperation load = _system.LoadScope(scope, null, null);
@@ -320,7 +322,8 @@ namespace Kott.Scopes.Tests
             RunAll();
 
             Assert.That(load.Succeeded, Is.False);
-            Assert.That(load.Exception.Message, Does.Contain("IFooService").And.Contain("'Root'").And.Contain("'Child'"));
+            Assert.That(load.Exception.Message,
+                Does.Contain("IFooService").And.Contain("'Root'").And.Contain("'Child'"));
             Assert.That(_registry.Get<IFooService>(), Is.SameAs(root.Managers[0]));
             Assert.That(_registry.IsRegistered(typeof(IBarService)), Is.False, "registration is all or nothing");
         }
@@ -452,7 +455,8 @@ namespace Kott.Scopes.Tests
         {
             RuntimeScope runtimeScope = LoadAndRun(CreateScope("S", null));
 
-            KeyNotFoundException exception = Assert.Throws<KeyNotFoundException>(() => runtimeScope.GetSceneGameObject("Door"));
+            KeyNotFoundException exception =
+                Assert.Throws<KeyNotFoundException>(() => runtimeScope.GetSceneGameObject("Door"));
 
             Assert.That(exception.Message, Does.Contain("'Door'").And.Contain("'S'"));
             Assert.That(runtimeScope.TryGetSceneGameObject("Door", out _), Is.False);

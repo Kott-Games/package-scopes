@@ -9,7 +9,8 @@ namespace Kott.Scopes
     [AddComponentMenu("Scopes/Scene Link")]
     public sealed class SceneLink : MonoBehaviour
     {
-        [SerializeField] private string _key;
+        [SerializeField]
+        private string _key;
 
         /// <summary>The key managers look this object up by.</summary>
         public string Key => _key;

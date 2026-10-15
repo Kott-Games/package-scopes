@@ -49,16 +49,19 @@ namespace Kott.Scopes.Tests
         {
             _registry.Register(OwnerA, new PlainManager());
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _registry.Get<IPlainService>());
+            InvalidOperationException exception =
+                Assert.Throws<InvalidOperationException>(() => _registry.Get<IPlainService>());
 
-            Assert.That(exception.Message, Does.Contain("IPlainService").And.Contain("ISingletonContract<IPlainService>"));
+            Assert.That(exception.Message,
+                Does.Contain("IPlainService").And.Contain("ISingletonContract<IPlainService>"));
             Assert.That(_registry.Get<PlainManager>(), Is.Not.Null);
         }
 
         [Test]
         public void Get_Unregistered_MessageNamesType()
         {
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _registry.Get<IFooService>());
+            InvalidOperationException exception =
+                Assert.Throws<InvalidOperationException>(() => _registry.Get<IFooService>());
 
             Assert.That(exception.Message, Does.Contain(typeof(IFooService).FullName));
         }

@@ -28,7 +28,8 @@ namespace Kott.Scopes
 
             EditorGUI.BeginProperty(position, label, property);
             EditorGUI.BeginChangeCheck();
-            SceneAsset selected = (SceneAsset)EditorGUI.ObjectField(position, label, current, typeof(SceneAsset), false);
+            SceneAsset selected =
+                (SceneAsset)EditorGUI.ObjectField(position, label, current, typeof(SceneAsset), false);
             bool changed = EditorGUI.EndChangeCheck();
             EditorGUI.EndProperty();
 

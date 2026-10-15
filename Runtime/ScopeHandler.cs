@@ -64,7 +64,8 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning($"A ScopeHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
+                Debug.LogWarning($"A ScopeHandler already exists on '{_instance.name}'; removing the one on '{name}'.",
+                    this);
                 Destroy(this);
                 return;
             }
@@ -93,7 +94,8 @@ namespace Kott.Scopes
         /// <param name="parent">Scope to load under; <c>null</c> loads under the root scope, or as the root if none is loaded.</param>
         /// <param name="progress">Receives progress from 0 to 1. May be <c>null</c>.</param>
         /// <returns>The operation; on failure the partially loaded scope is cleaned up and the error is in <see cref="ScopeOperation.Exception" />.</returns>
-        public ScopeOperation LoadScope(Scope scope, RuntimeScope parent = null, IProgress<ProgressReport> progress = null)
+        public ScopeOperation LoadScope(Scope scope, RuntimeScope parent = null,
+            IProgress<ProgressReport> progress = null)
         {
             return _system.LoadScope(scope, parent, progress);
         }
@@ -131,7 +133,8 @@ namespace Kott.Scopes
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _system = new ScopeSystem(SingletonRegistry.Default, routine => StartCoroutine(routine), transform, Debug.unityLogger);
+            _system = new ScopeSystem(SingletonRegistry.Default, routine => StartCoroutine(routine), transform,
+                Debug.unityLogger);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
