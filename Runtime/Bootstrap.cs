@@ -1,30 +1,38 @@
-using System.Collections;
 using Kott.Utilities.Progress;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Kott.Scopes
 {
+    /// <summary>
+    ///     Loads the root scope on <c>Start</c>. Put it in the first scene of the build and assign the root scope.
+    /// </summary>
+    [AddComponentMenu("Scopes/Bootstrap")]
     public sealed class Bootstrap : MonoBehaviour
     {
-        [SerializeField] private AssetReference _scopeRef;
+        [SerializeField] private Scope _rootScope;
 
-        private IEnumerator Start()
+        [Tooltip("Log loading progress to the console (editor and development builds).")]
+        [SerializeField] private bool _logProgress;
+
+        /// <summary>The scope loaded on start. Changing it after <c>Start</c> has no effect.</summary>
+        public Scope RootScope
         {
-            SubProgress subProgress = new(DebugProgressReporter.Instance);
+            get => _rootScope;
+            set => _rootScope = value;
+        }
 
-            subProgress.Start = new ProgressReport(0f, "Loading root scope asset.");
-            subProgress.Scale = 0.5f;
-            
-            AsyncOperationHandle<Scope> loadScopeHandle = _scopeRef.LoadAssetAsync<Scope>();
-            yield return new WaitForAsyncOperationHandleWithProgress(loadScopeHandle, subProgress);
+        /// <summary>The load operation, once started.</summary>
+        public ScopeOperation Operation { get; private set; }
 
-            subProgress.Start = new ProgressReport(0.5f, "Loading root scope.");
-            subProgress.Scale = 0.5f;
-            
-            Scope scope = loadScopeHandle.Result;
-            yield return ScopeHandler.Instance.LoadScope(scope, subProgress);
+        private void Start()
+        {
+            if (_rootScope == null)
+            {
+                Debug.LogError("Bootstrap has no root scope assigned.", this);
+                return;
+            }
+
+            Operation = ScopeHandler.Instance.LoadScope(_rootScope, progress: _logProgress ? DebugProgressReporter.Instance : null);
         }
     }
 }

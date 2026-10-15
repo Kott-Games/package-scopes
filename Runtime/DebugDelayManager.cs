@@ -5,16 +5,23 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
+    /// <summary>
+    ///     Simulates load time: delays initialization and uninitialization while reporting progress.
+    ///     Only active in the editor and development builds.
+    /// </summary>
+    [Serializable]
     public sealed class DebugDelayManager : Manager
     {
         [SerializeField] private float _initializeDelay = 1f;
         [SerializeField] private float _uninitializeDelay = 1f;
-        
+
+        /// <inheritdoc />
         public override IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
             return DelayRoutine(_initializeDelay, progress);
         }
-        
+
+        /// <inheritdoc />
         public override IEnumerator Uninitialize(IProgress<ProgressReport> progress)
         {
             return DelayRoutine(_uninitializeDelay, progress);
@@ -29,6 +36,7 @@ namespace Kott.Scopes
                 progress?.Report(new ProgressReport(passedTime / delay, info: null));
                 yield return null;
             }
+
             progress?.Report(new ProgressReport(1f, info: null));
 #else
             yield break;

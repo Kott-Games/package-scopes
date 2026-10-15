@@ -15,7 +15,6 @@
   "changelogUrl": "https://github.com/Kott-Games/package-scopes/blob/master/CHANGELOG.md",
   "documentationUrl": "https://github.com/Kott-Games/package-scopes#readme",
   "dependencies": {
-    "com.kott.utilities": "1.0.0",
-    "com.unity.addressables": "2.7.4"
+    "com.kott.utilities": "1.0.0"
   }
 }
