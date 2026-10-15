@@ -1,0 +1,26 @@
+{
+    "name": "Kott.Scopes.Tests.Editor",
+    "rootNamespace": "Kott.Scopes.Tests",
+    "references": [
+        "GUID:27619889b8ba8c24980f49ee34dbb44a",
+        "GUID:0acc523941302664db1f4e527237feb3",
+        "GUID:654bc5fac8fa28e448395e5b8ed61856",
+        "GUID:2f1b698b4ccb07045b14a21222297e2e",
+        "GUID:a35302cf9cb543e2b844afb7a34d7a9f"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
