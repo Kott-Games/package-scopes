@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1384fbd774101c841b7b09226fa6ddf0, type: 3}
+  m_Name: Mash
+  m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
+  _scene:
+    rid: 7000000000000000700
+  _declaredParent: {fileID: 11400000, guid: c72440a1665347f7b91a30058b35bd6b, type: 2}
+  _managers:
+  - rid: 7000000000000000701
+  - rid: 7000000000000000702
+  references:
+    version: 2
+    RefIds:
+    - rid: 7000000000000000700
+      type: {class: AddressableSceneReference, ns: Kott.Scopes, asm: Kott.Scopes.Addressables}
+      data:
+        _scene:
+          m_AssetGUID: bf7eeb36e2df4e44acef00771a79ac84
+          m_SubObjectName: 
+          m_SubObjectType: 
+          m_SubObjectGUID: 
+          m_EditorAssetChanged: 0
+    - rid: 7000000000000000701
+      type: {class: DebugDelayManager, ns: Kott.Scopes, asm: Kott.Scopes}
+      data:
+        _initializeDelay: 0.5
+        _uninitializeDelay: 0.3
+    - rid: 7000000000000000702
+      type: {class: MashGame, ns: Kott.Scopes.Demo, asm: Kott.Scopes.Demo}
+      data:
+        _returnDelay: 2
+        _actionKey: 32
+        _duration: 5
+        _pressesPerCoin: 4

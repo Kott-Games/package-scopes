@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1384fbd774101c841b7b09226fa6ddf0, type: 3}
+  m_Name: Board
+  m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
+  _scene:
+    rid: 7000000000000000500
+  _declaredParent: {fileID: 11400000, guid: c72440a1665347f7b91a30058b35bd6b, type: 2}
+  _managers:
+  - rid: 7000000000000000501
+  - rid: 7000000000000000502
+  references:
+    version: 2
+    RefIds:
+    - rid: 7000000000000000500
+      type: {class: AddressableSceneReference, ns: Kott.Scopes, asm: Kott.Scopes.Addressables}
+      data:
+        _scene:
+          m_AssetGUID: da3f8455dd69483b9c3b1f4860f09aec
+          m_SubObjectName: 
+          m_SubObjectType: 
+          m_SubObjectGUID: 
+          m_EditorAssetChanged: 0
+    - rid: 7000000000000000501
+      type: {class: DebugDelayManager, ns: Kott.Scopes, asm: Kott.Scopes}
+      data:
+        _initializeDelay: 0.5
+        _uninitializeDelay: 0.3
+    - rid: 7000000000000000502
+      type: {class: BoardManager, ns: Kott.Scopes.Demo, asm: Kott.Scopes.Demo}
+      data:
+        _tokenPrefab: {fileID: 260876273137374942, guid: 6dddd38c3d6d4ee195db7a38327ed875, type: 3}
+        _stepDuration: 0.2
+        _rollKey: 32

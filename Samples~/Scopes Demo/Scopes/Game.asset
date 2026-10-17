@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1384fbd774101c841b7b09226fa6ddf0, type: 3}
+  m_Name: Game
+  m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
+  _scene:
+    rid: -2
+  _declaredParent: {fileID: 11400000, guid: b4fe55eb1d2f4ed89b90534ed6cde4f2, type: 2}
+  _managers:
+  - rid: 7000000000000000301
+  - rid: 7000000000000000302
+  - rid: 7000000000000000303
+  - rid: 7000000000000000304
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
+    - rid: 7000000000000000301
+      type: {class: GameSession, ns: Kott.Scopes.Demo, asm: Kott.Scopes.Demo}
+      data:
+        _playerCount: 2
+        _roundCount: 5
+        _tileCount: 12
+        _coinTileReward: 3
+        _penaltyTileCost: 2
+    - rid: 7000000000000000302
+      type: {class: Dice, ns: Kott.Scopes.Demo, asm: Kott.Scopes.Demo}
+      data:
+        _seed: 0
+    - rid: 7000000000000000303
+      type: {class: GameFlow, ns: Kott.Scopes.Demo, asm: Kott.Scopes.Demo}
+      data:
+        _board: {fileID: 11400000, guid: c69399872b904fc5bffa08e44846cff4, type: 2}
+        _pause: {fileID: 11400000, guid: f722dcbd43f84489806ca6df90b08fc3, type: 2}
+        _miniGames:
+        - {fileID: 11400000, guid: 226931ee614f4b92a7108fd05c7e5eb3, type: 2}
+        - {fileID: 11400000, guid: 20ff03f60b874cb29e414decac683fcc, type: 2}
+        - {fileID: 11400000, guid: cbf53945ab59477b9af18d6cf275801b, type: 2}
+        _pauseKey: 27
+    - rid: 7000000000000000304
+      type: {class: DebugDelayManager, ns: Kott.Scopes, asm: Kott.Scopes}
+      data:
+        _initializeDelay: 0.6
+        _uninitializeDelay: 0.3
