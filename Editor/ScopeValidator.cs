@@ -205,12 +205,62 @@ namespace Kott.Scopes
             return missing;
         }
 
+        /// <summary>
+        ///     For each manager slot: the stored type of an unresolved manager, or <c>null</c> (resolved, or empty).
+        /// </summary>
+        /// <remarks>
+        ///     Unity keeps missing-type data aside and leaves the live entry <c>null</c>, so the serialized element
+        ///     usually reports the null reference id instead of the missing one. Slots whose id matches are assigned
+        ///     directly; the remaining missing types go to the remaining <c>null</c> slots in reference id order
+        ///     (ids are allocated in creation order).
+        /// </remarks>
+        internal static string[] GetUnresolvedManagerTypes(Scope scope)
+        {
+            IReadOnlyList<Manager> managers = scope.Managers;
+            string[] result = new string[managers.Count];
+            Dictionary<long, ManagedReferenceMissingType> missing = GetMissingTypes(scope);
+            if (missing.Count == 0)
+            {
+                return result;
+            }
+
+            List<int> unmatchedSlots = new();
+            using (SerializedObject serializedObject = new(scope))
+            {
+                SerializedProperty list = serializedObject.FindProperty(Scope.ManagersField);
+                for (int i = 0; i < managers.Count && i < list.arraySize; i++)
+                {
+                    if (managers[i] != null)
+                    {
+                        continue;
+                    }
+
+                    long referenceId = list.GetArrayElementAtIndex(i).managedReferenceId;
+                    if (missing.TryGetValue(referenceId, out ManagedReferenceMissingType missingType))
+                    {
+                        result[i] = FormatMissingType(missingType);
+                        missing.Remove(referenceId);
+                    }
+                    else
+                    {
+                        unmatchedSlots.Add(i);
+                    }
+                }
+            }
+
+            List<long> remainingIds = new(missing.Keys);
+            remainingIds.Sort();
+            for (int i = 0; i < unmatchedSlots.Count && i < remainingIds.Count; i++)
+            {
+                result[unmatchedSlots[i]] = FormatMissingType(missing[remainingIds[i]]);
+            }
+
+            return result;
+        }
+
         private static void ValidateManagers(Scope scope, List<ScopeIssue> issues)
         {
-            Dictionary<long, ManagedReferenceMissingType> missing = GetMissingTypes(scope);
-
-            using SerializedObject serializedObject = new(scope);
-            SerializedProperty list = serializedObject.FindProperty(Scope.ManagersField);
+            string[] unresolved = GetUnresolvedManagerTypes(scope);
             for (int i = 0; i < scope.Managers.Count; i++)
             {
                 if (scope.Managers[i] != null)
@@ -218,12 +268,11 @@ namespace Kott.Scopes
                     continue;
                 }
 
-                long referenceId = list.GetArrayElementAtIndex(i).managedReferenceId;
-                if (missing.TryGetValue(referenceId, out ManagedReferenceMissingType missingType))
+                if (unresolved[i] != null)
                 {
                     issues.Add(new ScopeIssue(scope, ScopeIssueKind.UnresolvedManagerType, ScopeIssueSeverity.Error,
-                        $"Manager {i + 1} has the unresolved type '{FormatMissingType(missingType)}'. Was the class " +
-                        "renamed, moved or deleted? Restore it, or keep it loadable with [MovedFrom]."));
+                        $"Manager {i + 1} has the unresolved type '{unresolved[i]}'. Was the class renamed, moved or " +
+                        "deleted? Restore it, or keep it loadable with [MovedFrom]."));
                 }
                 else
                 {

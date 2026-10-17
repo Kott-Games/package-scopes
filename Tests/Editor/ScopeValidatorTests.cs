@@ -276,6 +276,8 @@ namespace Kott.Scopes.Tests
 
             ScopeValidationResult result = ScopeValidator.Validate(scope);
 
+            Assert.That(SerializationUtility.HasManagedReferencesWithMissingTypes(scope), Is.True,
+                "Unity did not register the missing type; the test asset is wrong, not the validator.");
             Assert.That(scope.Managers[0], Is.Null);
             Assert.That(scope.Managers[1], Is.InstanceOf<RecordingManager>());
             ScopeIssue issue = result.Issues.Single();

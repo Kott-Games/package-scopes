@@ -35,7 +35,7 @@ namespace Kott.Scopes
         private SerializedProperty _parentProperty;
         private SerializedProperty _managersProperty;
         private ReorderableList _managerList;
-        private Dictionary<long, ManagedReferenceMissingType> _missingTypes = new();
+        private string[] _unresolvedTypes = Array.Empty<string>();
         private ScopeValidationResult _validation;
 
         private static GUIStyle MissingStyle => _missingStyle ??= new GUIStyle(EditorStyles.label)
@@ -106,7 +106,7 @@ namespace Kott.Scopes
                 return;
             }
 
-            _missingTypes = ScopeValidator.GetMissingTypes(Scope);
+            _unresolvedTypes = ScopeValidator.GetUnresolvedManagerTypes(Scope);
             _validation = ScopeValidator.Validate(Scope, inspectScene);
         }
 
@@ -193,9 +193,9 @@ namespace Kott.Scopes
 
             if (element.managedReferenceValue is not Manager manager)
             {
-                string text = _missingTypes.TryGetValue(element.managedReferenceId,
-                    out ManagedReferenceMissingType missingType)
-                    ? $"{index + 1}  Missing type: {ScopeValidator.FormatMissingType(missingType)}"
+                string unresolved = index < _unresolvedTypes.Length ? _unresolvedTypes[index] : null;
+                string text = unresolved != null
+                    ? $"{index + 1}  Missing type: {unresolved}"
                     : $"{index + 1}  Empty";
                 EditorGUI.LabelField(header, new GUIContent(text,
                     "The stored type could not be resolved. Restore the class, or keep it loadable with " +
