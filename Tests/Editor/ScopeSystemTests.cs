@@ -275,17 +275,17 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Instantiate_Prefab_InjectsComponentsAndParentsUnderRoot()
         {
-            Scope scope = LoadAndRun(CreateDefinition("S", null, new FooManager()));
+            Scope scope = LoadAndRun(CreateDefinition("S", null, new ProbeManager()));
             GameObject prefab = new("Prefab");
             _createdObjects.Add(prefab);
-            prefab.AddComponent<InjectedComponent>();
+            prefab.AddComponent<AwakeProbe>();
             new GameObject("Child").transform.SetParent(prefab.transform);
-            prefab.transform.GetChild(0).gameObject.AddComponent<InjectedComponent>();
+            prefab.transform.GetChild(0).gameObject.AddComponent<AwakeProbe>();
 
             GameObject instance = scope.Instantiate(prefab);
 
             Assert.That(instance.transform.parent, Is.SameAs(scope.Root.transform));
-            Assert.That(instance.GetComponentsInChildren<InjectedComponent>().Select(component => component.Foo),
+            Assert.That(instance.GetComponentsInChildren<AwakeProbe>().Select(component => component.Probe),
                 Is.EqualTo(new[] { scope.Managers[0], scope.Managers[0] }));
             Assert.That(scope.Root.transform.childCount, Is.EqualTo(1), "the temporary holder is gone");
         }
@@ -293,18 +293,18 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Instantiate_ComponentWithExplicitParent_ReturnsInjectedCopy()
         {
-            Scope scope = LoadAndRun(CreateDefinition("S", null, new FooManager()));
+            Scope scope = LoadAndRun(CreateDefinition("S", null, new ProbeManager()));
             GameObject parent = new("Parent");
             _createdObjects.Add(parent);
-            InjectedComponent prefab = new GameObject("Prefab").AddComponent<InjectedComponent>();
+            AwakeProbe prefab = new GameObject("Prefab").AddComponent<AwakeProbe>();
             _createdObjects.Add(prefab.gameObject);
 
-            InjectedComponent instance = scope.Instantiate(prefab, parent.transform);
+            AwakeProbe instance = scope.Instantiate(prefab, parent.transform);
 
             Assert.That(instance, Is.Not.SameAs(prefab));
-            Assert.That(instance.Foo, Is.SameAs(scope.Managers[0]));
+            Assert.That(instance.Probe, Is.SameAs(scope.Managers[0]));
             Assert.That(instance.transform.parent, Is.SameAs(parent.transform));
-            Assert.That(prefab.Foo, Is.Null);
+            Assert.That(prefab.Probe, Is.Null);
         }
 
         [Test]
@@ -313,7 +313,7 @@ namespace Kott.Scopes.Tests
             Scope scope = LoadAndRun(CreateDefinition("S", null));
             GameObject prefab = new("Prefab");
             _createdObjects.Add(prefab);
-            prefab.AddComponent<InjectedComponent>();
+            prefab.AddComponent<AwakeProbe>();
 
             Assert.Throws<InvalidOperationException>(() => scope.Instantiate(prefab));
 
@@ -323,21 +323,21 @@ namespace Kott.Scopes.Tests
         [Test]
         public void BindScene_SceneFieldsAndComponents_InjectedAndClearedOnUnbind()
         {
-            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), new FooManager(),
+            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), new ProbeManager(),
                 new SceneConsumer()));
             GameObject door = CreateSceneObject("Door");
             AddLink(door, "door");
             GameObject spawn = CreateSceneObject("Spawn");
             BoxCollider collider = spawn.AddComponent<BoxCollider>();
             AddLink(spawn, "spawn");
-            InjectedComponent component = CreateSceneObject("Tile").AddComponent<InjectedComponent>();
+            AwakeProbe component = CreateSceneObject("Tile").AddComponent<AwakeProbe>();
 
             scope.BindScene(SceneManager.GetActiveScene());
 
             SceneConsumer consumer = scope.Managers.OfType<SceneConsumer>().Single();
             Assert.That(consumer.Door, Is.SameAs(door));
             Assert.That(consumer.Spawn, Is.SameAs(collider));
-            Assert.That(component.Foo, Is.SameAs(scope.Managers.OfType<FooManager>().Single()));
+            Assert.That(component.Probe, Is.SameAs(scope.Managers.OfType<ProbeManager>().Single()));
 
             scope.UnbindScene();
 

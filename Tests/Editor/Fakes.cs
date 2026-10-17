@@ -105,6 +105,11 @@ namespace Kott.Scopes.Tests
     internal class PlainManager : Manager, IPlainService
     { }
 
+    /// <summary>Provides the contract of <see cref="AwakeProbe" /> (runtime test assembly, so Unity can attach it).</summary>
+    [Serializable]
+    internal class ProbeManager : Manager, IProbeService
+    { }
+
     [Serializable]
     internal class ExtendedFooManager : Manager, IExtendedFooService
     { }
