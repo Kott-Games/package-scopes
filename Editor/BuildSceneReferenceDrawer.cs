@@ -14,6 +14,12 @@ namespace Kott.Scopes
 
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
+            Draw(position, property, label);
+        }
+
+        /// <summary>Draws the scene field of a <see cref="BuildSceneReference" /> property in one line.</summary>
+        internal static void Draw(Rect position, SerializedProperty property, GUIContent label)
+        {
             SerializedProperty pathProperty = property.FindPropertyRelative("_scenePath");
             SerializedProperty guidProperty = property.FindPropertyRelative("_sceneGuid");
 

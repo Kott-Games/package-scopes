@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ScopeHandler.IsLoaded`, `TryGetRuntimeScope`, `Scopes`, `ScopeLoaded` / `ScopeUnloaded` events.
 - `RuntimeScope.Root` (scope-lifetime GameObject), `State`, `Managers`, `Scene`, `StartCoroutine`,
   `TryGetSceneGameObject` / `TryGetSceneComponent`.
+- Scope inspector: scene with loader picker (None / Build Profile / Addressables) and Open button,
+  ordered manager list with a searchable type picker, provided singleton contracts per manager,
+  unresolved (renamed) manager types shown with their stored type name, and a Health section.
+- Optional declared parent (`Scope.DeclaredParent`); loading under a different parent logs a warning.
+- `RequiresSingletonAttribute` for dependencies that are not `Singleton<T>` fields.
+- `ScopeValidator` (editor, callable from tests/CI): unresolved/empty managers, required singletons not
+  provided along the declared parents, singletons provided twice, declared-parent cycles, missing or
+  unregistered scenes, scenes without exactly one `SceneRoot`, duplicate/empty `SceneLink` keys.
+  `Tools > Scopes > Validate All` lists every issue with click-to-select.
+- `Assets > Create > Scopes > Scope with Scene (Build Profile / Addressables)`: creates the Scope and a
+  scene from the Scope Scene template and registers the scene with the loader.
 
 ### Changed
 - **Breaking:** managers are plain `[Serializable]` C# classes stored in the Scope asset

@@ -1,0 +1,31 @@
+{
+  "name": "Kott.Scopes.Addressables.Editor",
+  "rootNamespace": "Kott.Scopes",
+  "references": [
+    "GUID:654bc5fac8fa28e448395e5b8ed61856",
+    "GUID:5b2461f634bc4166ae32c51c7ec5f3cb",
+    "GUID:2f1b698b4ccb07045b14a21222297e2e",
+    "Unity.Addressables",
+    "Unity.Addressables.Editor",
+    "Unity.ResourceManager"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "KOTT_SCOPES_ADDRESSABLES"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.addressables",
+      "expression": "1.0.0",
+      "define": "KOTT_SCOPES_ADDRESSABLES"
+    }
+  ],
+  "noEngineReferences": false
+}
