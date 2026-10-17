@@ -13,85 +13,81 @@ namespace Kott.Scopes
     /// </summary>
     internal sealed class ScopeSystem
     {
-        private readonly SingletonRegistry _registry;
         private readonly Action<IEnumerator> _startRoutine;
         private readonly ILogger _logger;
         private readonly Transform _rootParent;
         private readonly Queue<PendingOperation> _queue = new();
-        private readonly List<RuntimeScope> _scopes = new();
+        private readonly List<Scope> _scopes = new();
 
         private bool _processing;
         private PendingOperation _current;
 
-        /// <param name="registry">Registry the managers' singletons are registered in.</param>
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
         /// <param name="logger">Receives failures and cleanup errors (<see cref="Debug.unityLogger" /> at runtime).</param>
-        public ScopeSystem(SingletonRegistry registry, Action<IEnumerator> startRoutine, Transform rootParent,
-            ILogger logger)
+        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent, ILogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _startRoutine = startRoutine ?? throw new ArgumentNullException(nameof(startRoutine));
             _rootParent = rootParent;
         }
 
         /// <summary>The scope whose scene is activating right now; picked up by <see cref="SceneRoot" />.</summary>
-        internal static RuntimeScope ActivatingScope { get; private set; }
+        internal static Scope ActivatingScope { get; private set; }
 
-        public RuntimeScope RootScope { get; private set; }
+        public Scope RootScope { get; private set; }
 
         /// <summary>All scopes in the tree, including ones still loading or unloading.</summary>
-        public IReadOnlyList<RuntimeScope> Scopes => _scopes;
+        public IReadOnlyList<Scope> Scopes => _scopes;
 
-        public event Action<RuntimeScope> ScopeLoaded;
-        public event Action<RuntimeScope> ScopeUnloaded;
+        public event Action<Scope> ScopeLoaded;
+        public event Action<Scope> ScopeUnloaded;
 
-        public ScopeOperation LoadScope(Scope scope, RuntimeScope parent, IProgress<ProgressReport> progress)
+        public ScopeOperation LoadScope(ScopeDefinition definition, Scope parent, IProgress<ProgressReport> progress)
+        {
+            if (definition == null)
+            {
+                throw new ArgumentNullException(nameof(definition));
+            }
+
+            ScopeOperation operation = new(ScopeOperationType.Load, definition, scope: null);
+            Enqueue(new PendingOperation(operation, parent, progress));
+            return operation;
+        }
+
+        public ScopeOperation UnloadScope(Scope scope, IProgress<ProgressReport> progress)
         {
             if (scope == null)
             {
                 throw new ArgumentNullException(nameof(scope));
             }
 
-            ScopeOperation operation = new(ScopeOperationType.Load, scope, runtimeScope: null);
-            Enqueue(new PendingOperation(operation, parent, progress));
-            return operation;
-        }
-
-        public ScopeOperation UnloadScope(RuntimeScope runtimeScope, IProgress<ProgressReport> progress)
-        {
-            if (runtimeScope == null)
-            {
-                throw new ArgumentNullException(nameof(runtimeScope));
-            }
-
-            ScopeOperation operation = new(ScopeOperationType.Unload, runtimeScope.Scope, runtimeScope);
+            ScopeOperation operation = new(ScopeOperationType.Unload, scope.Definition, scope);
             Enqueue(new PendingOperation(operation, parent: null, progress));
             return operation;
         }
 
-        public bool TryGetRuntimeScope(Scope scope, out RuntimeScope runtimeScope)
+        public bool TryGetScope(ScopeDefinition definition, out Scope scope)
         {
-            foreach (RuntimeScope candidate in _scopes)
+            foreach (Scope candidate in _scopes)
             {
-                if (candidate.Scope == scope && candidate.State == ScopeState.Loaded)
+                if (candidate.Definition == definition && candidate.State == ScopeState.Loaded)
                 {
-                    runtimeScope = candidate;
+                    scope = candidate;
                     return true;
                 }
             }
 
-            runtimeScope = null;
+            scope = null;
             return false;
         }
 
-        public bool IsLoaded(Scope scope)
+        public bool IsLoaded(ScopeDefinition definition)
         {
-            return TryGetRuntimeScope(scope, out _);
+            return TryGetScope(definition, out _);
         }
 
-        /// <summary>Sends <see cref="Manager.SceneExit" /> to every scope with a loaded scene, children first.</summary>
+        /// <summary>Sends <see cref="Manager.OnSceneExit" /> to every scope with a loaded scene, children first.</summary>
         public void NotifyApplicationQuit()
         {
             if (RootScope == null)
@@ -99,11 +95,11 @@ namespace Kott.Scopes
                 return;
             }
 
-            foreach (RuntimeScope runtimeScope in CollectDepthFirst(RootScope))
+            foreach (Scope scope in CollectDepthFirst(RootScope))
             {
-                if (runtimeScope.SceneLoaded)
+                if (scope.SceneLoaded)
                 {
-                    runtimeScope.InvokeSceneExit();
+                    scope.InvokeSceneExit();
                 }
             }
         }
@@ -159,73 +155,72 @@ namespace Kott.Scopes
         private IEnumerator Load(PendingOperation pending)
         {
             ScopeOperation operation = pending.Operation;
-            Scope scope = operation.Scope;
+            ScopeDefinition definition = operation.Definition;
 
-            if (scope == null)
+            if (definition == null)
             {
                 Fail(operation,
-                    new InvalidOperationException("The Scope asset was destroyed before it could be loaded."));
+                    new InvalidOperationException("The scope definition was destroyed before it could be loaded."));
                 yield break;
             }
 
-            foreach (RuntimeScope existing in _scopes)
+            foreach (Scope existing in _scopes)
             {
-                if (existing.Scope == scope)
+                if (existing.Definition == definition)
                 {
-                    Fail(operation,
-                        new InvalidOperationException($"Scope '{scope.name}' is already loaded ({existing.State})."));
+                    Fail(operation, new InvalidOperationException(
+                        $"Scope '{definition.name}' is already loaded ({existing.State})."));
                     yield break;
                 }
             }
 
-            RuntimeScope parent = pending.Parent ?? RootScope;
+            Scope parent = pending.Parent ?? RootScope;
             if (parent != null && parent.State != ScopeState.Loaded)
             {
                 Fail(operation, new InvalidOperationException(
-                    $"Cannot load scope '{scope.name}' under {parent}: the parent is {parent.State}."));
+                    $"Cannot load scope '{definition.name}' under {parent}: the parent is {parent.State}."));
                 yield break;
             }
 
-            if (scope.DeclaredParent != null && (parent == null || parent.Scope != scope.DeclaredParent))
+            if (definition.DeclaredParent != null && (parent == null || parent.Definition != definition.DeclaredParent))
             {
                 _logger.LogWarning("Scopes",
-                    $"Scope '{scope.name}' declares parent '{scope.DeclaredParent.name}' but is loaded " +
+                    $"Scope '{definition.name}' declares parent '{definition.DeclaredParent.name}' but is loaded " +
                     (parent != null ? $"under {parent}." : "as the root scope."));
             }
 
             // managers are [SerializeReference] objects in the asset: work on a copy so runtime state stays out of it
-            Scope instance = Object.Instantiate(scope);
-            instance.name = scope.name;
+            ScopeDefinition instance = Object.Instantiate(definition);
+            instance.name = definition.name;
 
-            GameObject root = new($"Scope '{scope.name}'");
+            GameObject root = new($"Scope '{definition.name}'");
             Transform rootParent = parent != null ? parent.Root.transform : _rootParent;
             if (rootParent != null)
             {
                 root.transform.SetParent(rootParent, worldPositionStays: false);
             }
 
-            RuntimeScope runtimeScope = new(scope, instance, parent, root) { State = ScopeState.Loading };
-            operation.RuntimeScope = runtimeScope;
-            _scopes.Add(runtimeScope);
-            RootScope ??= runtimeScope;
-            parent?.ChildrenInternal.Insert(0, runtimeScope);
+            Scope scope = new(definition, instance, parent, root) { State = ScopeState.Loading };
+            operation.Scope = scope;
+            _scopes.Add(scope);
+            RootScope ??= scope;
+            parent?.ChildrenInternal.Insert(0, scope);
 
             IProgress<ProgressReport> progress = pending.Progress;
-            progress?.Report(new ProgressReport(0f, $"Load scope '{scope.name}'"));
+            progress?.Report(new ProgressReport(0f, $"Load scope '{definition.name}'"));
 
-            IReadOnlyList<Manager> managers = runtimeScope.Managers;
             SceneReference sceneReference = instance.Scene;
             bool hasScene = sceneReference != null && sceneReference.IsAssigned;
             float managerShare = hasScene ? 0.5f : 1f;
             Exception error = null;
             int initializedCount = 0;
 
-            for (int i = 0; i < managers.Count && error == null; i++)
+            for (int i = 0; i < scope.Managers.Count && error == null; i++)
             {
-                if (managers[i] == null)
+                if (scope.Managers[i] == null)
                 {
                     error = new InvalidOperationException(
-                        $"{runtimeScope} has a missing manager at index {i}: its type could not be resolved " +
+                        $"{scope} has a missing manager at index {i}: its type could not be resolved " +
                         "(renamed or deleted class?).");
                 }
             }
@@ -234,13 +229,14 @@ namespace Kott.Scopes
             {
                 try
                 {
-                    foreach (Manager manager in managers)
+                    foreach (Manager manager in scope.Managers)
                     {
-                        if (manager is ISingleton singleton)
-                        {
-                            _registry.Register(runtimeScope, singleton);
-                        }
+                        manager.Scope = scope;
                     }
+
+                    scope.RegisterContracts();
+                    scope.InjectManagers(hasScene);
+                    scope.OrderManagers();
                 }
                 catch (Exception exception)
                 {
@@ -248,14 +244,13 @@ namespace Kott.Scopes
                 }
             }
 
+            IReadOnlyList<Manager> managers = scope.Managers;
             if (error == null && managers.Count > 0)
             {
                 SubProgress managerProgress = new(progress) { Scale = managerShare / managers.Count };
                 for (int i = 0; i < managers.Count; i++)
                 {
                     Manager manager = managers[i];
-                    manager.RuntimeScope = runtimeScope;
-
                     managerProgress.Start =
                         new ProgressReport(i * managerProgress.Scale, $"Initialize {manager.GetType().Name}");
                     managerProgress.Report(new ProgressReport(0f, null));
@@ -268,8 +263,8 @@ namespace Kott.Scopes
                     }
 
                     initializedCount++;
-                    managerProgress.Report(new ProgressReport(1f,
-                        null)); // in case the manager doesn't report completion
+                    // in case the manager doesn't report completion
+                    managerProgress.Report(new ProgressReport(1f, null));
                 }
             }
 
@@ -284,7 +279,7 @@ namespace Kott.Scopes
 
                 try
                 {
-                    runtimeScope.SceneLoader = sceneReference.CreateLoader();
+                    scope.SceneLoader = sceneReference.CreateLoader();
                 }
                 catch (Exception exception)
                 {
@@ -293,57 +288,58 @@ namespace Kott.Scopes
 
                 if (error == null)
                 {
-                    ActivatingScope = runtimeScope;
-                    yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Load(sceneProgress),
+                    ActivatingScope = scope;
+                    yield return SafeRoutine.Run(() => scope.SceneLoader.Load(sceneProgress),
                         exception => error = exception);
                     ActivatingScope = null;
 
-                    runtimeScope.SceneLoaded = true; // also on failure: a partially loaded scene must be unloaded
-                    error ??= runtimeScope.SceneError;
+                    scope.SceneLoaded = true; // also on failure: a partially loaded scene must be unloaded
+                    error ??= scope.SceneError;
                 }
             }
 
             if (error != null)
             {
-                yield return CleanUpFailedLoad(runtimeScope, initializedCount);
+                yield return CleanUpFailedLoad(scope, initializedCount);
                 Fail(operation, error);
                 yield break;
             }
 
-            runtimeScope.State = ScopeState.Loaded;
-            progress?.Report(new ProgressReport(1f, $"Loaded scope '{scope.name}'"));
-            Raise(ScopeLoaded, runtimeScope);
+            scope.State = ScopeState.Loaded;
+            progress?.Report(new ProgressReport(1f, $"Loaded scope '{definition.name}'"));
+            Raise(ScopeLoaded, scope);
             operation.Complete(null);
         }
 
-        private IEnumerator CleanUpFailedLoad(RuntimeScope runtimeScope, int initializedCount)
+        private IEnumerator CleanUpFailedLoad(Scope scope, int initializedCount)
         {
-            runtimeScope.State = ScopeState.Unloading;
+            scope.State = ScopeState.Unloading;
 
-            if (runtimeScope.SceneLoaded)
+            if (scope.SceneLoaded)
             {
-                if (runtimeScope.SceneBound)
+                if (scope.SceneBound)
                 {
-                    runtimeScope.InvokeSceneExit();
+                    scope.InvokeSceneExit();
                 }
 
-                yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Unload(null), _logger.LogException);
+                scope.UnbindScene();
+                yield return SafeRoutine.Run(() => scope.SceneLoader.Unload(null), _logger.LogException);
             }
 
             for (int i = initializedCount - 1; i >= 0; i--)
             {
-                Manager manager = runtimeScope.Managers[i];
+                Manager manager = scope.Managers[i];
                 yield return SafeRoutine.Run(() => manager.Uninitialize(null), _logger.LogException);
             }
 
-            _registry.Unregister(runtimeScope);
-            Detach(runtimeScope, ScopeState.Failed);
+            DisposeContainer(scope);
+            Detach(scope, ScopeState.Failed);
         }
 
         private IEnumerator Unload(PendingOperation pending)
         {
             ScopeOperation operation = pending.Operation;
-            RuntimeScope target = operation.RuntimeScope;
+            Scope target = operation.Scope;
 
             if (target.State != ScopeState.Loaded || !_scopes.Contains(target))
             {
@@ -351,7 +347,7 @@ namespace Kott.Scopes
                 yield break;
             }
 
-            List<RuntimeScope> order = CollectDepthFirst(target);
+            List<Scope> order = CollectDepthFirst(target);
             List<Exception> errors = new();
 
             for (int i = 0; i < order.Count; i++)
@@ -381,27 +377,27 @@ namespace Kott.Scopes
             operation.Complete(error);
         }
 
-        private IEnumerator UnloadSingle(RuntimeScope runtimeScope, IProgress<ProgressReport> progress,
-            List<Exception> errors)
+        private IEnumerator UnloadSingle(Scope scope, IProgress<ProgressReport> progress, List<Exception> errors)
         {
-            runtimeScope.State = ScopeState.Unloading;
-            progress.Report(new ProgressReport(0f, $"Unload scope '{runtimeScope.Name}'"));
+            scope.State = ScopeState.Unloading;
+            progress.Report(new ProgressReport(0f, $"Unload scope '{scope.Name}'"));
 
-            float sceneShare = runtimeScope.SceneLoaded ? 0.5f : 0f;
-            if (runtimeScope.SceneLoaded)
+            float sceneShare = scope.SceneLoaded ? 0.5f : 0f;
+            if (scope.SceneLoaded)
             {
-                runtimeScope.InvokeSceneExit();
+                scope.InvokeSceneExit();
+                scope.UnbindScene();
 
                 SubProgress sceneProgress = new(progress)
                 {
-                    Start = new ProgressReport(0f, $"Unload scene of '{runtimeScope.Name}'"),
+                    Start = new ProgressReport(0f, $"Unload scene of '{scope.Name}'"),
                     Scale = sceneShare,
                 };
-                yield return SafeRoutine.Run(() => runtimeScope.SceneLoader.Unload(sceneProgress), errors.Add);
-                runtimeScope.SceneLoaded = false;
+                yield return SafeRoutine.Run(() => scope.SceneLoader.Unload(sceneProgress), errors.Add);
+                scope.SceneLoaded = false;
             }
 
-            IReadOnlyList<Manager> managers = runtimeScope.Managers;
+            IReadOnlyList<Manager> managers = scope.Managers;
             if (managers.Count > 0)
             {
                 SubProgress managerProgress = new(progress) { Scale = (1f - sceneShare) / managers.Count };
@@ -417,37 +413,16 @@ namespace Kott.Scopes
                 }
             }
 
-            _registry.Unregister(runtimeScope);
-            Detach(runtimeScope, ScopeState.Unloaded);
-            Raise(ScopeUnloaded, runtimeScope);
+            DisposeContainer(scope);
+            Detach(scope, ScopeState.Unloaded);
+            Raise(ScopeUnloaded, scope);
         }
 
-        private void Detach(RuntimeScope runtimeScope, ScopeState finalState)
-        {
-            runtimeScope.Parent?.ChildrenInternal.Remove(runtimeScope);
-            _scopes.Remove(runtimeScope);
-            if (RootScope == runtimeScope)
-            {
-                RootScope = null;
-            }
-
-            runtimeScope.DestroyRoot();
-            runtimeScope.State = finalState;
-        }
-
-        private void Fail(ScopeOperation operation, Exception exception)
-        {
-            _logger.LogError("Scopes",
-                $"{operation.Type} of scope '{(operation.Scope != null ? operation.Scope.name : "?")}' " +
-                $"failed: {exception}");
-            operation.Complete(exception);
-        }
-
-        private void Raise(Action<RuntimeScope> handler, RuntimeScope runtimeScope)
+        private void DisposeContainer(Scope scope)
         {
             try
             {
-                handler?.Invoke(runtimeScope);
+                scope.DisposeContainer();
             }
             catch (Exception exception)
             {
@@ -455,16 +430,49 @@ namespace Kott.Scopes
             }
         }
 
-        /// <summary>The subtree of <paramref name="runtimeScope" />, children before their parent.</summary>
-        private static List<RuntimeScope> CollectDepthFirst(RuntimeScope runtimeScope)
+        private void Detach(Scope scope, ScopeState finalState)
         {
-            List<RuntimeScope> result = new();
-            Collect(runtimeScope);
+            scope.Parent?.ChildrenInternal.Remove(scope);
+            _scopes.Remove(scope);
+            if (RootScope == scope)
+            {
+                RootScope = null;
+            }
+
+            scope.DestroyRoot();
+            scope.State = finalState;
+        }
+
+        private void Fail(ScopeOperation operation, Exception exception)
+        {
+            _logger.LogError("Scopes",
+                $"{operation.Type} of scope '{(operation.Definition != null ? operation.Definition.name : "?")}' " +
+                $"failed: {exception}");
+            operation.Complete(exception);
+        }
+
+        private void Raise(Action<Scope> handler, Scope scope)
+        {
+            try
+            {
+                handler?.Invoke(scope);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogException(exception);
+            }
+        }
+
+        /// <summary>The subtree of <paramref name="scope" />, children before their parent.</summary>
+        private static List<Scope> CollectDepthFirst(Scope scope)
+        {
+            List<Scope> result = new();
+            Collect(scope);
             return result;
 
-            void Collect(RuntimeScope current)
+            void Collect(Scope current)
             {
-                foreach (RuntimeScope child in current.Children)
+                foreach (Scope child in current.Children)
                 {
                     Collect(child);
                 }
@@ -475,7 +483,7 @@ namespace Kott.Scopes
 
         private sealed class PendingOperation
         {
-            public PendingOperation(ScopeOperation operation, RuntimeScope parent, IProgress<ProgressReport> progress)
+            public PendingOperation(ScopeOperation operation, Scope parent, IProgress<ProgressReport> progress)
             {
                 Operation = operation;
                 Parent = parent;
@@ -483,7 +491,7 @@ namespace Kott.Scopes
             }
 
             public ScopeOperation Operation { get; }
-            public RuntimeScope Parent { get; }
+            public Scope Parent { get; }
             public IProgress<ProgressReport> Progress { get; }
         }
     }

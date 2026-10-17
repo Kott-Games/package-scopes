@@ -3,7 +3,7 @@ using System;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Serializable reference to the scene of a <see cref="Scope" />, stored in the Scope asset.
+    ///     Serializable reference to the scene of a scope, stored in its <see cref="ScopeDefinition" />.
     ///     Built in: <see cref="BuildSceneReference" /> (scene list of the build profile) and, with the
     ///     Addressables package installed, <c>AddressableSceneReference</c>.
     /// </summary>

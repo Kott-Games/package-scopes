@@ -10,42 +10,39 @@ using Object = UnityEngine.Object;
 
 namespace Kott.Scopes.Tests
 {
-    [Serializable]
-    internal class FooConsumer : Manager
-    {
-        public Singleton<IFooService> Foo;
-    }
-
-    /// <summary>Inherits the IFooService requirement and adds a private one.</summary>
+    /// <summary>Inherits the IFooService injection and adds a private one.</summary>
     [Serializable]
     internal class DerivedConsumer : FooConsumer
     {
-        private Singleton<IBarService> _bar;
+        [Inject]
+        private IBarService _bar;
 
-        public bool HasBar => _bar.IsAvailable;
+        public bool HasBar => _bar != null;
     }
 
     [Serializable]
-    [RequiresSingleton(typeof(IBarService))]
-    internal class AttributeConsumer : Manager
-    { }
-
-    [Serializable]
-    [RequiresSingleton(typeof(string))]
-    internal class NonSingletonConsumer : Manager
-    { }
-
-    [Serializable]
-    internal class PlainInterfaceConsumer : Manager
+    internal class ConcreteTypeConsumer : Manager
     {
-        public Singleton<IPlainService> Plain;
+        [Inject]
+        public FooManager Foo;
+    }
+
+    [Serializable]
+    internal class InvalidSceneFieldConsumer : Manager
+    {
+        [InjectScene("count")]
+        public int Count;
+
+        [InjectScene("")]
+        public GameObject NoKey;
     }
 
     public class ScopeValidatorTests
     {
         private const string TemplateScenePath = "Packages/com.kott.scopes/Runtime/ScopeScene.unity";
         private const string TempFolder = "Assets/KottScopesTestsTemp";
-        private const string ScopeScriptGuid = "1384fbd774101c841b7b09226fa6ddf0"; // Runtime/Scope.cs.meta
+        // Runtime/ScopeDefinition.cs.meta
+        private const string DefinitionScriptGuid = "1384fbd774101c841b7b09226fa6ddf0";
 
         private readonly List<Object> _createdObjects = new();
         private EditorBuildSettingsScene[] _buildScenes;
@@ -73,132 +70,141 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void GetRequiredSingletons_DerivedManager_IncludesInheritedAndPrivateFields()
+        public void GetInjectedContracts_DerivedManager_IncludesInheritedAndPrivateFields()
         {
-            Assert.That(ScopeValidator.GetRequiredSingletons(typeof(DerivedConsumer)),
+            Assert.That(ScopeValidator.GetInjectedContracts(typeof(DerivedConsumer)),
                 Is.EquivalentTo(new[] { typeof(IFooService), typeof(IBarService) }));
         }
 
         [Test]
-        public void GetRequiredSingletons_Attribute_Included()
+        public void GetProvidedContracts_ManagerWithTwoContracts_ReturnsBoth()
         {
-            Assert.That(ScopeValidator.GetRequiredSingletons(typeof(AttributeConsumer)),
-                Is.EqualTo(new[] { typeof(IBarService) }));
+            Assert.That(ScopeValidator.GetProvidedContracts(typeof(FooBarManager)),
+                Is.EquivalentTo(new[] { typeof(IFooService), typeof(IBarService) }));
         }
 
         [Test]
-        public void GetProvidedSingletons_ContractManager_ConcreteTypeAndAllContracts()
+        public void GetProvidedContracts_ExtendedContract_IncludesBaseContract()
         {
-            Assert.That(ScopeValidator.GetProvidedSingletons(typeof(FooBarManager)),
-                Is.EquivalentTo(new[] { typeof(FooBarManager), typeof(IFooService), typeof(IBarService) }));
+            Assert.That(ScopeValidator.GetProvidedContracts(typeof(ExtendedFooManager)),
+                Is.EquivalentTo(new[] { typeof(IFooService), typeof(IExtendedFooService) }));
         }
 
         [Test]
-        public void GetProvidedSingletons_NonSingletonManager_Empty()
+        public void GetProvidedContracts_ManagerWithoutContracts_Empty()
         {
-            Assert.That(ScopeValidator.GetProvidedSingletons(typeof(RecordingManager)), Is.Empty);
+            Assert.That(ScopeValidator.GetProvidedContracts(typeof(RecordingManager)), Is.Empty);
+            Assert.That(ScopeValidator.GetProvidedContracts(typeof(PlainManager)), Is.Empty);
         }
 
         [Test]
-        public void Validate_RequirementProvidedBySameScope_NoIssues()
+        public void GetSceneKeys_SceneConsumer_ReturnsKeys()
         {
-            Scope scope = CreateScope("S", new FooConsumer(), new FooManager());
+            Assert.That(ScopeValidator.GetSceneKeys(typeof(SceneConsumer)), Is.EqualTo(new[] { "door", "spawn" }));
+        }
 
-            ScopeValidationResult result = ScopeValidator.Validate(scope);
+        [Test]
+        public void Validate_ContractProvidedBySameScope_NoIssues()
+        {
+            ScopeDefinition definition = CreateDefinition("S", new FooConsumer(), new FooManager());
+
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
 
             Assert.That(result.Issues, Is.Empty);
-            SingletonRequirement requirement = result.Requirements.Single();
+            ContractRequirement requirement = result.Requirements.Single();
             Assert.That(requirement.Type, Is.EqualTo(typeof(IFooService)));
-            Assert.That(requirement.ProvidedBy, Is.SameAs(scope));
+            Assert.That(requirement.ProvidedBy, Is.SameAs(definition));
             Assert.That(requirement.Provider, Is.EqualTo(typeof(FooManager)));
             Assert.That(requirement.RequiredBy, Is.EqualTo(new[] { typeof(FooConsumer) }));
+            Assert.That(requirement.IsOptional, Is.False);
         }
 
         [Test]
-        public void Validate_RequirementProvidedByDeclaredGrandparent_ResolvedToGrandparent()
+        public void Validate_ContractProvidedByDeclaredGrandparent_ResolvedToGrandparent()
         {
-            Scope grandparent = CreateScope("Core", new FooManager());
-            Scope parent = CreateScope("Game", grandparent);
-            Scope scope = CreateScope("Hub", parent, new FooConsumer());
+            ScopeDefinition grandparent = CreateDefinition("Core", new FooManager());
+            ScopeDefinition parent = CreateDefinition("Game", grandparent);
+            ScopeDefinition definition = CreateDefinition("Hub", parent, new FooConsumer());
 
-            ScopeValidationResult result = ScopeValidator.Validate(scope);
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
 
             Assert.That(result.Issues, Is.Empty);
             Assert.That(result.Requirements.Single().ProvidedBy, Is.SameAs(grandparent));
         }
 
         [Test]
-        public void Validate_RequirementNotProvided_WarnsNamingTypeAndManager()
+        public void Validate_ContractNotProvidedWithoutDeclaredParent_WarnsNamingTypeAndManager()
         {
-            Scope scope = CreateScope("Hub", new FooConsumer());
+            ScopeDefinition definition = CreateDefinition("Hub", new FooConsumer());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSingleton));
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingContract));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Warning));
             Assert.That(issue.Message,
-                Does.StartWith("'IFooService' (required by FooConsumer) is not provided by 'Hub'."));
+                Does.StartWith("'IFooService' (injected by FooConsumer) is not provided by 'Hub'."));
             Assert.That(issue.Message, Does.Contain("Declare a parent scope"));
         }
 
         [Test]
-        public void Validate_RequirementNotProvidedByDeclaredParents_MessageMentionsParents()
+        public void Validate_ContractNotProvidedByDeclaredParents_Error()
         {
-            Scope parent = CreateScope("Game", new BarManager());
-            Scope scope = CreateScope("Hub", parent, new FooConsumer());
+            ScopeDefinition parent = CreateDefinition("Game", new BarManager());
+            ScopeDefinition definition = CreateDefinition("Hub", parent, new FooConsumer());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSingleton));
+            ScopeIssue issue = result.Issues.Single();
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingContract));
+            Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Error));
             Assert.That(issue.Message, Does.Contain("is not provided by 'Hub' or its declared parents."));
-            Assert.That(ScopeValidator.Validate(scope).Requirements.Single().IsProvided, Is.False);
+            Assert.That(result.Requirements.Single().IsProvided, Is.False);
         }
 
         [Test]
-        public void Validate_RequiresSingletonAttribute_IsChecked()
+        public void Validate_OptionalContractNotProvided_NoIssue()
         {
-            Scope scope = CreateScope("S", new AttributeConsumer());
+            ScopeDefinition definition = CreateDefinition("S", new OptionalFooConsumer());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSingleton));
-            Assert.That(issue.Message, Does.StartWith("'IBarService' (required by AttributeConsumer)"));
+            Assert.That(result.Issues, Is.Empty);
+            Assert.That(result.Requirements.Single().IsOptional, Is.True);
         }
 
         [Test]
-        public void Validate_RequirementOfNonSingletonType_Error()
+        public void Validate_InjectedNonContractInterface_Error()
         {
-            Scope scope = CreateScope("S", new NonSingletonConsumer());
+            ScopeDefinition definition = CreateDefinition("S", new PlainInterfaceConsumer(), new PlainManager());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.InvalidRequirement));
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.InvalidInjection));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Error));
             Assert.That(issue.Message, Is.EqualTo(
-                "NonSingletonConsumer requires 'String', which is not a singleton type. Implement ISingleton or a " +
-                "singleton contract."));
+                "[Inject] PlainInterfaceConsumer.Plain: 'IPlainService' is not a manager contract. Declare it as " +
+                "'IPlainService : IManagerContract'."));
         }
 
         [Test]
-        public void Validate_RequirementOfNonContractInterface_Error()
+        public void Validate_InjectedManagerClass_Error()
         {
-            Scope scope = CreateScope("S", new PlainInterfaceConsumer(), new PlainManager());
+            ScopeDefinition definition = CreateDefinition("S", new ConcreteTypeConsumer(), new FooManager());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.InvalidRequirement));
-            Assert.That(issue.Message,
-                Does.Contain("'IPlainService', which is an interface but not a singleton contract"));
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.InvalidInjection));
+            Assert.That(issue.Message, Does.Contain("Inject an interface extending IManagerContract"));
         }
 
         [Test]
         public void Validate_ContractProvidedTwiceInScope_Error()
         {
-            Scope scope = CreateScope("S", new FooManager(), new FooBarManager());
+            ScopeDefinition definition = CreateDefinition("S", new FooManager(), new FooBarManager());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateSingleton));
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateContract));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Error));
             Assert.That(issue.Message,
                 Does.StartWith("'IFooService' is provided twice: by FooManager in 'S' and by FooBarManager in 'S'."));
@@ -207,41 +213,167 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Validate_ContractProvidedByScopeAndDeclaredParent_Error()
         {
-            Scope parent = CreateScope("Game", new FooManager());
-            Scope scope = CreateScope("Hub", parent, new FooBarManager());
+            ScopeDefinition parent = CreateDefinition("Game", new FooManager());
+            ScopeDefinition definition = CreateDefinition("Hub", parent, new FooBarManager());
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
-            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateSingleton));
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateContract));
             Assert.That(issue.Message, Does.Contain("by FooManager in 'Game' and by FooBarManager in 'Hub'"));
         }
 
         [Test]
         public void Validate_DuplicateAmongDeclaredParentsOnly_NotReportedForChild()
         {
-            Scope parent = CreateScope("Game", new FooManager(), new FooBarManager());
-            Scope scope = CreateScope("Hub", parent, new RecordingManager());
+            ScopeDefinition parent = CreateDefinition("Game", new FooManager(), new FooBarManager());
+            ScopeDefinition definition = CreateDefinition("Hub", parent, new RecordingManager());
 
-            Assert.That(ScopeValidator.Validate(scope).Issues, Is.Empty);
+            Assert.That(ScopeValidator.Validate(definition).Issues, Is.Empty);
             Assert.That(ScopeValidator.Validate(parent).Issues.Single().Kind,
-                Is.EqualTo(ScopeIssueKind.DuplicateSingleton));
+                Is.EqualTo(ScopeIssueKind.DuplicateContract));
         }
 
         [Test]
-        public void Validate_SameNonSingletonManagerTwice_NoIssues()
+        public void Validate_SameManagerWithoutContractsTwice_NoIssues()
         {
-            Scope scope = CreateScope("S", new RecordingManager(), new RecordingManager());
+            ScopeDefinition definition = CreateDefinition("S", new RecordingManager(), new RecordingManager());
 
-            Assert.That(ScopeValidator.Validate(scope).Issues, Is.Empty);
+            Assert.That(ScopeValidator.Validate(definition).Issues, Is.Empty);
+        }
+
+        [Test]
+        public void Validate_ConsumerListedBeforeProvider_OrderInitializesProviderFirst()
+        {
+            ScopeDefinition definition =
+                CreateDefinition("S", new FooConsumer(), new RecordingManager(), new FooManager());
+
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
+
+            Assert.That(result.Issues, Is.Empty);
+            Assert.That(result.InitializationOrder, Is.EqualTo(new[] { 1, 2, 0 }));
+        }
+
+        [Test]
+        public void Validate_DependencyCycle_ErrorNamesCycle()
+        {
+            ScopeDefinition definition = CreateDefinition("S", new CycleFoo(), new CycleBar());
+
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
+
+            ScopeIssue issue = result.Issues.Single();
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DependencyCycle));
+            Assert.That(issue.Message,
+                Does.StartWith("The managers inject each other in a cycle: CycleFoo → CycleBar → CycleFoo."));
+            Assert.That(result.InitializationOrder, Is.Empty);
+        }
+
+        [Test]
+        public void Validate_SceneFieldsWithoutScene_ErrorPerField()
+        {
+            ScopeDefinition definition = CreateDefinition("S", new SceneConsumer());
+
+            IReadOnlyList<ScopeIssue> issues = ScopeValidator.Validate(definition).Issues;
+
+            Assert.That(issues.Select(issue => issue.Kind),
+                Is.EqualTo(new[]
+                    { ScopeIssueKind.SceneInjectionWithoutScene, ScopeIssueKind.SceneInjectionWithoutScene }));
+            Assert.That(issues[0].Message,
+                Does.StartWith("SceneConsumer.Door needs the SceneLink 'door', but 'S' has no scene."));
+        }
+
+        [Test]
+        public void Validate_OptionalSceneFieldWithoutScene_NoIssue()
+        {
+            ScopeDefinition definition = CreateDefinition("S", new OptionalSceneConsumer());
+
+            Assert.That(ScopeValidator.Validate(definition).Issues, Is.Empty);
+        }
+
+        [Test]
+        public void Validate_InvalidSceneFields_ErrorPerField()
+        {
+            ScopeDefinition definition = CreateDefinition("S", new InvalidSceneFieldConsumer());
+
+            IReadOnlyList<ScopeIssue> issues = ScopeValidator.Validate(definition).Issues;
+
+            Assert.That(issues.Select(issue => issue.Kind),
+                Is.EqualTo(new[] { ScopeIssueKind.InvalidInjection, ScopeIssueKind.InvalidInjection }));
+            Assert.That(issues[0].Message, Does.Contain("'Int32' cannot come from a scene object"));
+            Assert.That(issues[1].Message, Does.Contain("the [InjectScene] key is empty"));
+        }
+
+        [Test]
+        public void Validate_SceneNotRegistered_FixRegistersScene()
+        {
+            EditorBuildSettings.scenes = Array.Empty<EditorBuildSettingsScene>();
+            ScopeDefinition definition = CreateDefinition("S");
+            definition.SetScene(new BuildSceneReference(TemplateScenePath));
+            ScopeIssue issue = ScopeValidator.Validate(definition, false).Issues.Single();
+            Assert.That(issue.CanFix, Is.True);
+            Assert.That(issue.FixLabel, Is.EqualTo("Register with Build Profile"));
+
+            issue.Fix();
+
+            Assert.That(EditorBuildSettings.scenes.Select(scene => scene.path),
+                Is.EqualTo(new[] { TemplateScenePath }));
+            Assert.That(ScopeValidator.Validate(definition, false).Issues, Is.Empty);
+        }
+
+        [Test]
+        public void ValidateSceneContent_InjectedSceneLinksPresent_NoIssues()
+        {
+            GameObject root = CreateGameObject("Root");
+            root.AddComponent<SceneRoot>();
+            AddLink(CreateGameObject("Door", root), "door");
+            GameObject spawn = CreateGameObject("Spawn", root);
+            spawn.AddComponent<BoxCollider>();
+            AddLink(spawn, "spawn");
+
+            Assert.That(ScopeValidator.ValidateSceneContent(CreateDefinition("S", new SceneConsumer()), "Level",
+                new[] { root }), Is.Empty);
+        }
+
+        [Test]
+        public void ValidateSceneContent_InjectedSceneLinkMissing_Error()
+        {
+            GameObject root = CreateGameObject("Root");
+            root.AddComponent<SceneRoot>();
+            GameObject spawn = CreateGameObject("Spawn", root);
+            spawn.AddComponent<BoxCollider>();
+            AddLink(spawn, "spawn");
+
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S", new SceneConsumer()),
+                "Level", new[] { root }).Single();
+
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSceneLink));
+            Assert.That(issue.Message,
+                Does.StartWith("SceneConsumer.Door needs the SceneLink 'door', which scene 'Level' does not have."));
+        }
+
+        [Test]
+        public void ValidateSceneContent_InjectedSceneLinkWithoutComponent_Error()
+        {
+            GameObject root = CreateGameObject("Root");
+            root.AddComponent<SceneRoot>();
+            AddLink(CreateGameObject("Door", root), "door");
+            AddLink(CreateGameObject("Spawn", root), "spawn");
+
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S", new SceneConsumer()),
+                "Level", new[] { root }).Single();
+
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSceneLinkComponent));
+            Assert.That(issue.Message,
+                Is.EqualTo("SceneConsumer.Spawn needs a BoxCollider on SceneLink 'spawn' ('Spawn' in scene 'Level'), " +
+                           "which it does not have."));
         }
 
         [Test]
         public void Validate_DeclaredParentIsSelf_CycleError()
         {
-            Scope scope = CreateScope("A");
-            scope.SetDeclaredParent(scope);
+            ScopeDefinition definition = CreateDefinition("A");
+            definition.SetDeclaredParent(definition);
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DeclaredParentCycle));
             Assert.That(issue.Message, Is.EqualTo("The declared parents form a cycle: A → A."));
@@ -250,8 +382,8 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Validate_DeclaredParentCycle_ErrorNamesChain()
         {
-            Scope a = CreateScope("A");
-            Scope b = CreateScope("B", a);
+            ScopeDefinition a = CreateDefinition("A");
+            ScopeDefinition b = CreateDefinition("B", a);
             a.SetDeclaredParent(b);
 
             ScopeIssue issue = ScopeValidator.Validate(a).Issues.Single();
@@ -263,9 +395,9 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Validate_EmptyManagerSlot_Error()
         {
-            Scope scope = CreateScope("S", new RecordingManager(), null);
+            ScopeDefinition definition = CreateDefinition("S", new RecordingManager(), null);
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.EmptyManagerSlot));
             Assert.That(issue.Message, Does.StartWith("Manager 2 is empty."));
@@ -274,14 +406,14 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Validate_UnresolvedManagerType_ErrorNamesStoredType()
         {
-            Scope scope = ImportScopeWithMissingManagerType();
+            ScopeDefinition definition = ImportScopeWithMissingManagerType();
 
-            ScopeValidationResult result = ScopeValidator.Validate(scope);
+            ScopeValidationResult result = ScopeValidator.Validate(definition);
 
-            Assert.That(SerializationUtility.HasManagedReferencesWithMissingTypes(scope), Is.True,
+            Assert.That(SerializationUtility.HasManagedReferencesWithMissingTypes(definition), Is.True,
                 "Unity did not register the missing type; the test asset is wrong, not the validator.");
-            Assert.That(scope.Managers[0], Is.Null);
-            Assert.That(scope.Managers[1], Is.InstanceOf<RecordingManager>());
+            Assert.That(definition.Managers[0], Is.Null);
+            Assert.That(definition.Managers[1], Is.InstanceOf<RecordingManager>());
             ScopeIssue issue = result.Issues.Single();
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.UnresolvedManagerType));
             Assert.That(issue.Message, Does.StartWith(
@@ -291,10 +423,10 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Validate_SceneDoesNotExist_SceneNotFound()
         {
-            Scope scope = CreateScope("S");
-            scope.SetScene(new BuildSceneReference("Assets/DoesNotExist.unity"));
+            ScopeDefinition definition = CreateDefinition("S");
+            definition.SetScene(new BuildSceneReference("Assets/DoesNotExist.unity"));
 
-            ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.SceneNotFound));
             Assert.That(issue.Message, Does.StartWith("The scene 'DoesNotExist' does not exist."));
@@ -304,10 +436,10 @@ namespace Kott.Scopes.Tests
         public void Validate_SceneNotInBuildProfile_SceneNotRegistered()
         {
             EditorBuildSettings.scenes = Array.Empty<EditorBuildSettingsScene>();
-            Scope scope = CreateScope("S");
-            scope.SetScene(new BuildSceneReference(TemplateScenePath));
+            ScopeDefinition definition = CreateDefinition("S");
+            definition.SetScene(new BuildSceneReference(TemplateScenePath));
 
-            ScopeIssue issue = ScopeValidator.Validate(scope, false).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition, false).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.SceneNotRegistered));
             Assert.That(issue.Message,
@@ -319,10 +451,10 @@ namespace Kott.Scopes.Tests
         public void Validate_SceneDisabledInBuildProfile_SceneNotRegistered()
         {
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(TemplateScenePath, false) };
-            Scope scope = CreateScope("S");
-            scope.SetScene(new BuildSceneReference(TemplateScenePath));
+            ScopeDefinition definition = CreateDefinition("S");
+            definition.SetScene(new BuildSceneReference(TemplateScenePath));
 
-            ScopeIssue issue = ScopeValidator.Validate(scope, false).Issues.Single();
+            ScopeIssue issue = ScopeValidator.Validate(definition, false).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.SceneNotRegistered));
             Assert.That(issue.Message, Does.Contain("is disabled in the scene list"));
@@ -332,10 +464,10 @@ namespace Kott.Scopes.Tests
         public void Validate_InspectRegisteredTemplateScene_NoIssuesAndSceneClosedAgain()
         {
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(TemplateScenePath, true) };
-            Scope scope = CreateScope("S");
-            scope.SetScene(new BuildSceneReference(TemplateScenePath));
+            ScopeDefinition definition = CreateDefinition("S");
+            definition.SetScene(new BuildSceneReference(TemplateScenePath));
 
-            ScopeValidationResult result = ScopeValidator.Validate(scope, true);
+            ScopeValidationResult result = ScopeValidator.Validate(definition, true);
 
             Assert.That(result.Issues, Is.Empty);
             Assert.That(result.SceneInspected, Is.True);
@@ -350,7 +482,7 @@ namespace Kott.Scopes.Tests
             AddLink(CreateGameObject("A", root), "a");
             AddLink(CreateGameObject("B", root), "b");
 
-            Assert.That(ScopeValidator.ValidateSceneContent(CreateScope("S"), "Level", new[] { root }), Is.Empty);
+            Assert.That(ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root }), Is.Empty);
         }
 
         [Test]
@@ -358,7 +490,8 @@ namespace Kott.Scopes.Tests
         {
             GameObject root = CreateGameObject("Root");
 
-            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateScope("S"), "Level", new[] { root }).Single();
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root })
+                .Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.SceneWithoutSceneRoot));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Error));
@@ -374,7 +507,7 @@ namespace Kott.Scopes.Tests
             second.AddComponent<SceneRoot>();
 
             ScopeIssue issue = ScopeValidator
-                .ValidateSceneContent(CreateScope("S"), "Level", new[] { first, second }).Single();
+                .ValidateSceneContent(CreateDefinition("S"), "Level", new[] { first, second }).Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MultipleSceneRoots));
             Assert.That(issue.Message, Does.StartWith("The scene 'Level' has 2 SceneRoots ('First', 'Second')"));
@@ -388,7 +521,8 @@ namespace Kott.Scopes.Tests
             AddLink(CreateGameObject("A", root), "door");
             AddLink(CreateGameObject("B", CreateGameObject("Nested", root)), "door");
 
-            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateScope("S"), "Level", new[] { root }).Single();
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root })
+                .Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateSceneLinkKey));
             Assert.That(issue.Message,
@@ -402,25 +536,26 @@ namespace Kott.Scopes.Tests
             root.AddComponent<SceneRoot>();
             AddLink(CreateGameObject("A", root), "");
 
-            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateScope("S"), "Level", new[] { root }).Single();
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root })
+                .Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.EmptySceneLinkKey));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Warning));
         }
 
-        private Scope CreateScope(string name, params Manager[] managers)
+        private ScopeDefinition CreateDefinition(string name, params Manager[] managers)
         {
-            return CreateScope(name, null, managers);
+            return CreateDefinition(name, null, managers);
         }
 
-        private Scope CreateScope(string name, Scope declaredParent, params Manager[] managers)
+        private ScopeDefinition CreateDefinition(string name, ScopeDefinition declaredParent, params Manager[] managers)
         {
-            Scope scope = ScriptableObject.CreateInstance<Scope>();
-            scope.name = name;
-            scope.SetDeclaredParent(declaredParent);
-            scope.SetManagers(managers);
-            _createdObjects.Add(scope);
-            return scope;
+            ScopeDefinition definition = ScriptableObject.CreateInstance<ScopeDefinition>();
+            definition.name = name;
+            definition.SetDeclaredParent(declaredParent);
+            definition.SetManagers(managers);
+            _createdObjects.Add(definition);
+            return definition;
         }
 
         private GameObject CreateGameObject(string name, GameObject parent = null)
@@ -447,10 +582,10 @@ namespace Kott.Scopes.Tests
         }
 
         /// <summary>
-        ///     Imports a Scope asset whose first manager has a type that does not exist, as after renaming a class
+        ///     Imports a scope definition whose first manager has a type that does not exist, as after renaming a class
         ///     without [MovedFrom].
         /// </summary>
-        private static Scope ImportScopeWithMissingManagerType()
+        private static ScopeDefinition ImportScopeWithMissingManagerType()
         {
             string yaml = $@"%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
@@ -463,7 +598,7 @@ MonoBehaviour:
   m_GameObject: {{fileID: 0}}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {{fileID: 11500000, guid: {ScopeScriptGuid}, type: 3}}
+  m_Script: {{fileID: 11500000, guid: {DefinitionScriptGuid}, type: 3}}
   m_Name: Broken
   m_EditorClassIdentifier:
   _scene:
@@ -497,7 +632,7 @@ MonoBehaviour:
             string path = $"{TempFolder}/Broken.asset";
             File.WriteAllText(path, yaml);
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
-            return AssetDatabase.LoadAssetAtPath<Scope>(path);
+            return AssetDatabase.LoadAssetAtPath<ScopeDefinition>(path);
         }
     }
 }

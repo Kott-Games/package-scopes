@@ -68,14 +68,27 @@ namespace Kott.Scopes
 
         public IEnumerator Load(IProgress<ProgressReport> progress)
         {
-            if (SceneUtility.GetBuildIndexByScenePath(_scenePath) < 0)
+            AsyncOperation operation;
+            if (SceneUtility.GetBuildIndexByScenePath(_scenePath) >= 0)
             {
+                operation = SceneManager.LoadSceneAsync(_scenePath, LoadSceneMode.Additive);
+            }
+            else
+            {
+#if UNITY_EDITOR
+                // keeps iterating in the editor possible; scope validation still reports it as an error
+                Debug.LogWarning(
+                    $"Scene '{_scenePath}' is not in the scene list of the build profile. It loads in the editor, " +
+                    "but a build will fail to load it. Add it there, or reference it through Addressables instead.");
+                operation = UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(_scenePath,
+                    new LoadSceneParameters(LoadSceneMode.Additive));
+#else
                 throw new InvalidOperationException(
                     $"Scene '{_scenePath}' is not in the scene list of the build profile. Add it there, or reference " +
                     "it through Addressables instead.");
+#endif
             }
 
-            AsyncOperation operation = SceneManager.LoadSceneAsync(_scenePath, LoadSceneMode.Additive);
             if (operation == null)
             {
                 throw new InvalidOperationException($"Loading scene '{_scenePath}' could not be started.");

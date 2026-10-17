@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    /// <summary>Lists the <see cref="ScopeValidator" /> issues of every Scope asset; click an entry to select it.</summary>
+    /// <summary>Lists the <see cref="ScopeValidator" /> issues of every scope definition; click an entry to select it.</summary>
     internal sealed class ScopeValidationWindow : EditorWindow
     {
         private IReadOnlyList<ScopeValidationResult> _results;
@@ -43,7 +43,7 @@ namespace Kott.Scopes
 
             if (_results == null)
             {
-                EditorGUILayout.HelpBox("Press Validate to check all Scope assets.", MessageType.Info);
+                EditorGUILayout.HelpBox("Press Validate to check all scope definitions.", MessageType.Info);
                 return;
             }
 
@@ -55,14 +55,14 @@ namespace Kott.Scopes
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             foreach (ScopeValidationResult result in _results)
             {
-                if (result.Issues.Count == 0 || result.Scope == null)
+                if (result.Issues.Count == 0 || result.Definition == null)
                 {
                     continue;
                 }
 
-                if (GUILayout.Button(result.Scope.name, EditorStyles.boldLabel))
+                if (GUILayout.Button(result.Definition.name, EditorStyles.boldLabel))
                 {
-                    Select(result.Scope);
+                    Select(result.Definition);
                 }
 
                 foreach (ScopeIssue issue in result.Issues)
@@ -77,6 +77,14 @@ namespace Kott.Scopes
                         if (GUILayout.Button(issue.Message, _messageStyle))
                         {
                             Select(issue.Context);
+                        }
+
+                        if (issue.CanFix && GUILayout.Button(issue.FixLabel, EditorStyles.miniButton,
+                                GUILayout.ExpandWidth(false)))
+                        {
+                            issue.Fix();
+                            Validate();
+                            GUIUtility.ExitGUI();
                         }
                     }
                 }

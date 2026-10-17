@@ -6,7 +6,7 @@ namespace Kott.Scopes
 {
     /// <summary>
     ///     Runs coroutines independent of any scope (they survive scope unloads). For coroutines that belong
-    ///     to a scope use <see cref="RuntimeScope.StartCoroutine" />.
+    ///     to a scope use <see cref="Scope.StartCoroutine" />.
     /// </summary>
     /// <remarks>Created on first access like <see cref="ScopeHandler" />; a hand-placed instance is reused.</remarks>
     [DisallowMultipleComponent]

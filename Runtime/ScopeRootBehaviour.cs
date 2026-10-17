@@ -2,25 +2,25 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    /// <summary>Lives on <see cref="RuntimeScope.Root" />: drives update callbacks and hosts scope coroutines.</summary>
+    /// <summary>Lives on <see cref="Scope.Root" />: drives update callbacks and hosts scope coroutines.</summary>
     [AddComponentMenu("")]
     internal sealed class ScopeRootBehaviour : MonoBehaviour
     {
-        internal RuntimeScope RuntimeScope;
+        internal Scope Scope;
 
         private void Update()
         {
-            if (RuntimeScope is { State: ScopeState.Loaded })
+            if (Scope is { State: ScopeState.Loaded })
             {
-                RuntimeScope.InvokeSceneUpdate();
+                Scope.InvokeUpdate();
             }
         }
 
         private void FixedUpdate()
         {
-            if (RuntimeScope is { State: ScopeState.Loaded })
+            if (Scope is { State: ScopeState.Loaded })
             {
-                RuntimeScope.InvokeSceneFixedUpdate();
+                Scope.InvokeFixedUpdate();
             }
         }
     }

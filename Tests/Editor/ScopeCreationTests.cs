@@ -30,12 +30,12 @@ namespace Kott.Scopes.Tests
         {
             string scenePath = $"{Folder}/Hub.unity";
 
-            Scope scope = ScopeCreation.CreateWithScene($"{Folder}/Hub.asset", BuildAuthoring());
+            ScopeDefinition definition = ScopeCreation.CreateWithScene($"{Folder}/Hub.asset", BuildAuthoring());
 
-            Assert.That(AssetDatabase.LoadAssetAtPath<Scope>($"{Folder}/Hub.asset"), Is.SameAs(scope));
+            Assert.That(AssetDatabase.LoadAssetAtPath<ScopeDefinition>($"{Folder}/Hub.asset"), Is.SameAs(definition));
             Assert.That(AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath), Is.Not.Null);
 
-            BuildSceneReference reference = scope.Scene as BuildSceneReference;
+            BuildSceneReference reference = definition.Scene as BuildSceneReference;
             Assert.That(reference, Is.Not.Null);
             Assert.That(reference.ScenePath, Is.EqualTo(scenePath));
             Assert.That(reference.SceneGuid, Is.EqualTo(AssetDatabase.AssetPathToGUID(scenePath)));
@@ -43,7 +43,7 @@ namespace Kott.Scopes.Tests
                 Is.EqualTo(1));
 
             // the copied template scene has a SceneRoot
-            ScopeValidationResult result = ScopeValidator.Validate(scope, true);
+            ScopeValidationResult result = ScopeValidator.Validate(definition, true);
             Assert.That(result.SceneInspected, Is.True);
             Assert.That(result.Issues, Is.Empty, result.ToString());
         }
@@ -57,7 +57,7 @@ namespace Kott.Scopes.Tests
                 ScopeCreation.CreateWithScene($"{Folder}/Hub.asset", BuildAuthoring()));
 
             Assert.That(exception.Message, Is.EqualTo($"'{Folder}/Hub.unity' already exists."));
-            Assert.That(AssetDatabase.LoadAssetAtPath<Scope>($"{Folder}/Hub.asset"), Is.Null);
+            Assert.That(AssetDatabase.LoadAssetAtPath<ScopeDefinition>($"{Folder}/Hub.asset"), Is.Null);
         }
 
         [Test]

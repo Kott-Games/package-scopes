@@ -14,9 +14,6 @@ namespace Kott.Scopes.Tests
     {
         public static readonly List<string> Entries = new();
 
-        /// <summary>The registry of the system under test, for probes.</summary>
-        public static SingletonRegistry Registry;
-
         public static void Add(string entry)
         {
             Entries.Add(entry);
@@ -25,7 +22,6 @@ namespace Kott.Scopes.Tests
         public static void Clear()
         {
             Entries.Clear();
-            Registry = null;
         }
 
         public static int IndexOf(string entry)
@@ -37,14 +33,18 @@ namespace Kott.Scopes.Tests
         }
     }
 
-    internal interface IFooService : ISingletonContract<IFooService>
+    internal interface IFooService : IManagerContract
     { }
 
-    internal interface IBarService : ISingletonContract<IBarService>
+    internal interface IBarService : IManagerContract
     { }
 
-    /// <summary>An ISingleton interface that is not a contract.</summary>
-    internal interface IPlainService : ISingleton
+    /// <summary>A contract extending another one: providers provide both.</summary>
+    internal interface IExtendedFooService : IFooService
+    { }
+
+    /// <summary>An interface that is not a manager contract.</summary>
+    internal interface IPlainService
     { }
 
     [Serializable]
@@ -83,7 +83,7 @@ namespace Kott.Scopes.Tests
             yield break;
         }
 
-        public override void SceneExit()
+        public override void OnSceneExit()
         {
             TestLog.Add($"{Id}.SceneExit");
         }
@@ -105,25 +105,74 @@ namespace Kott.Scopes.Tests
     internal class PlainManager : Manager, IPlainService
     { }
 
-    /// <summary>Logs whether IFooService is registered during its own Initialize/Uninitialize.</summary>
     [Serializable]
-    internal class RegistryProbeManager : Manager
+    internal class ExtendedFooManager : Manager, IExtendedFooService
+    { }
+
+    /// <summary>Injects IFooService and logs whether it is set when (un)initializing.</summary>
+    [Serializable]
+    internal class FooConsumer : RecordingManager
     {
+        [Inject]
+        public IFooService Foo;
+
         public override IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
-            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService))
-                ? "Probe.Initialize:Foo"
-                : "Probe.Initialize:NoFoo");
-            yield break;
+            TestLog.Add(Foo != null ? $"{Id}.Initialize:Foo" : $"{Id}.Initialize:NoFoo");
+            return base.Initialize(progress);
         }
 
         public override IEnumerator Uninitialize(IProgress<ProgressReport> progress)
         {
-            TestLog.Add(TestLog.Registry.IsRegistered(typeof(IFooService))
-                ? "Probe.Uninitialize:Foo"
-                : "Probe.Uninitialize:NoFoo");
-            yield break;
+            TestLog.Add(Foo != null ? $"{Id}.Uninitialize:Foo" : $"{Id}.Uninitialize:NoFoo");
+            return base.Uninitialize(progress);
         }
+    }
+
+    [Serializable]
+    internal class OptionalFooConsumer : Manager
+    {
+        [Inject(Optional = true)]
+        public IFooService Foo;
+    }
+
+    [Serializable]
+    internal class PlainInterfaceConsumer : Manager
+    {
+        [Inject]
+        public IPlainService Plain;
+    }
+
+    /// <summary>Provides IFooService and needs IBarService; with <see cref="CycleBar" /> a dependency cycle.</summary>
+    [Serializable]
+    internal class CycleFoo : RecordingManager, IFooService
+    {
+        [Inject]
+        public IBarService Bar;
+    }
+
+    [Serializable]
+    internal class CycleBar : RecordingManager, IBarService
+    {
+        [Inject]
+        public IFooService Foo;
+    }
+
+    [Serializable]
+    internal class SceneConsumer : RecordingManager
+    {
+        [InjectScene("door")]
+        public GameObject Door;
+
+        [InjectScene("spawn")]
+        public BoxCollider Spawn;
+    }
+
+    [Serializable]
+    internal class OptionalSceneConsumer : Manager
+    {
+        [InjectScene("door", Optional = true)]
+        public GameObject Door;
     }
 
     /// <summary>Throws synchronously from a non-iterator override.</summary>

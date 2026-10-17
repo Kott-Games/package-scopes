@@ -25,20 +25,24 @@ namespace Kott.Scopes.Tests
                 yield return null;
             }
 
-            public override void SceneUpdate()
+            public override void Update()
             {
                 Updates++;
-                if (RuntimeScope.State != ScopeState.Loaded)
+                if (Scope.State != ScopeState.Loaded)
                 {
                     UpdatesBeforeLoaded++;
                 }
             }
 
-            public override void SceneFixedUpdate()
+            public override void FixedUpdate()
             {
                 FixedUpdates++;
             }
         }
+
+        [Serializable]
+        private sealed class ProbeManager : Manager, IProbeService
+        { }
 
         [SetUp]
         public void SetUp()
@@ -108,11 +112,11 @@ namespace Kott.Scopes.Tests
         [UnityTest]
         public IEnumerator Bootstrap_InEmptyScene_LoadsRootScope()
         {
-            Scope scope = CreateScope("Root");
+            ScopeDefinition definition = CreateDefinition("Root");
             GameObject bootstrapObject = new("Bootstrap");
             bootstrapObject.SetActive(false);
             Bootstrap bootstrap = bootstrapObject.AddComponent<Bootstrap>();
-            bootstrap.RootScope = scope;
+            bootstrap.RootScope = definition;
             bootstrapObject.SetActive(true);
 
             yield return null; // Start
@@ -120,14 +124,14 @@ namespace Kott.Scopes.Tests
             yield return bootstrap.Operation;
 
             Assert.That(bootstrap.Operation.Succeeded, Is.True);
-            Assert.That(ScopeHandler.Instance.RootScope?.Scope, Is.SameAs(scope));
+            Assert.That(ScopeHandler.Instance.RootScope?.Definition, Is.SameAs(definition));
         }
 
         [UnityTest]
-        public IEnumerator SceneUpdate_SceneLessScope_IsCalledOnceLoaded()
+        public IEnumerator Update_SceneLessScope_IsCalledOnceLoaded()
         {
             // regression: updates were driven by the scene's SceneRoot, so scene-less scopes never got them
-            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateScope("NoScene", new CountingManager()));
+            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateDefinition("NoScene", new CountingManager()));
             yield return load;
             Assert.That(load.Succeeded, Is.True);
 
@@ -141,11 +145,11 @@ namespace Kott.Scopes.Tests
         }
 
         [UnityTest]
-        public IEnumerator SceneUpdate_AfterUnload_IsNoLongerCalled()
+        public IEnumerator Update_AfterUnload_IsNoLongerCalled()
         {
-            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateScope("NoScene", new CountingManager()));
+            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateDefinition("NoScene", new CountingManager()));
             yield return load;
-            yield return ScopeHandler.Instance.UnloadScope(load.RuntimeScope);
+            yield return ScopeHandler.Instance.UnloadScope(load.Scope);
             int updates = CountingManager.Updates;
 
             yield return null;
@@ -155,15 +159,34 @@ namespace Kott.Scopes.Tests
         }
 
         [UnityTest]
+        public IEnumerator Instantiate_ActivePrefab_InjectsBeforeAwake()
+        {
+            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateDefinition("S", new ProbeManager()));
+            yield return load;
+            GameObject prefab = new("Prefab");
+            prefab.SetActive(false);
+            prefab.AddComponent<AwakeProbe>();
+            prefab.SetActive(true);
+            Object.Destroy(prefab);
+
+            AwakeProbe instance = load.Scope.Instantiate(prefab).GetComponent<AwakeProbe>();
+
+            Assert.That(instance.Awoken, Is.True);
+            Assert.That(instance.InjectedInAwake, Is.True);
+            Assert.That(instance.Probe, Is.SameAs(load.Scope.Managers[0]));
+            Assert.That(instance.transform.parent, Is.SameAs(load.Scope.Root.transform));
+        }
+
+        [UnityTest]
         public IEnumerator StartCoroutine_ScopeUnloaded_StopsCoroutine()
         {
-            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateScope("S"));
+            ScopeOperation load = ScopeHandler.Instance.LoadScope(CreateDefinition("S"));
             yield return load;
             int ticks = 0;
-            load.RuntimeScope.StartCoroutine(Tick());
+            load.Scope.StartCoroutine(Tick());
 
             yield return null;
-            yield return ScopeHandler.Instance.UnloadScope(load.RuntimeScope);
+            yield return ScopeHandler.Instance.UnloadScope(load.Scope);
             int ticksAtUnload = ticks;
             yield return null;
             yield return null;
@@ -231,12 +254,12 @@ namespace Kott.Scopes.Tests
             }
         }
 
-        private static Scope CreateScope(string name, params Manager[] managers)
+        private static ScopeDefinition CreateDefinition(string name, params Manager[] managers)
         {
-            Scope scope = ScriptableObject.CreateInstance<Scope>();
-            scope.name = name;
-            scope.SetManagers(managers);
-            return scope;
+            ScopeDefinition definition = ScriptableObject.CreateInstance<ScopeDefinition>();
+            definition.name = name;
+            definition.SetManagers(managers);
+            return definition;
         }
     }
 }

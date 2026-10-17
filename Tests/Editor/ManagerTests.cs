@@ -12,18 +12,19 @@ namespace Kott.Scopes.Tests
         [Serializable]
         private sealed class GreetingManager : Manager
         {
-            private Singleton<INameService> _names;
+            [Inject]
+            private INameService _names;
 
             public string Greeting { get; private set; }
 
             public override IEnumerator Initialize(IProgress<ProgressReport> progress)
             {
-                Greeting = $"Hello {_names.Instance.Name}";
+                Greeting = $"Hello {_names.Name}";
                 yield break;
             }
         }
 
-        private interface INameService : ISingletonContract<INameService>
+        private interface INameService : IManagerContract
         {
             string Name { get; }
         }
@@ -34,10 +35,10 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void Initialize_DependencyFromSingletonTestScope_UsesFake()
+        public void Initialize_DependencyFromTestInjector_UsesFake()
         {
-            using SingletonTestScope singletons = SingletonTestScope.Create().Add<INameService>(new FakeNameService());
-            GreetingManager manager = new();
+            GreetingManager manager = TestInjector.Create().Add<INameService>(new FakeNameService())
+                .Inject(new GreetingManager());
 
             IEnumerator routine = manager.Initialize(null);
             while (routine.MoveNext())
