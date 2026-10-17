@@ -4,20 +4,20 @@ using UnityEngine;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Loads the root scope on <c>Start</c>. Put it in the first scene of the build and assign the root scope.
+    ///     Loads the root scope on <c>Start</c>. Put it in the first scene of the build and assign the root scope's definition.
     /// </summary>
     [AddComponentMenu("Scopes/Bootstrap")]
     public sealed class Bootstrap : MonoBehaviour
     {
         [SerializeField]
-        private Scope _rootScope;
+        private ScopeDefinition _rootScope;
 
         [Tooltip("Log loading progress to the console (editor and development builds).")]
         [SerializeField]
         private bool _logProgress;
 
-        /// <summary>The scope loaded on start. Changing it after <c>Start</c> has no effect.</summary>
-        public Scope RootScope
+        /// <summary>The definition loaded on start. Changing it after <c>Start</c> has no effect.</summary>
+        public ScopeDefinition RootScope
         {
             get => _rootScope;
             set => _rootScope = value;

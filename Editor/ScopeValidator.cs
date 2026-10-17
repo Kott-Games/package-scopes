@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,125 +10,109 @@ using Object = UnityEngine.Object;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Checks Scope assets for authoring mistakes: unresolved or empty managers, singletons that are required
-    ///     but not provided (or provided twice) along the declared parents, declared-parent cycles, scenes that are
-    ///     missing, unregistered with their loader, without a <see cref="SceneRoot" />, or with duplicate
-    ///     <see cref="SceneLink" /> keys.
+    ///     Checks scope definitions for authoring mistakes: unresolved or empty managers, injected contracts that are
+    ///     not provided (or provided twice) along the declared parents, invalid injected fields, dependency cycles,
+    ///     declared-parent cycles, scenes that are missing, unregistered with their loader, without a
+    ///     <see cref="SceneRoot" />, with duplicate <see cref="SceneLink" /> keys, or without the links
+    ///     <see cref="InjectSceneAttribute" /> fields need.
     /// </summary>
     /// <remarks>
-    ///     Used by the Scope inspector and <c>Tools &gt; Scopes &gt; Validate All</c>; call it from tests or CI to
-    ///     fail a build on errors:
+    ///     Used by the definition inspector and <c>Tools &gt; Scopes &gt; Validate All</c>; call it from tests or CI
+    ///     to fail a build on errors:
     ///     <code>
     /// foreach (ScopeValidationResult result in ScopeValidator.ValidateAll())
     ///     Assert.That(result.HasErrors, Is.False, result.ToString());
     /// </code>
+    ///     A contract missing along the declared parents is a warning if the definition declares no parent (the
+    ///     scope it is loaded under may provide it) and an error otherwise: declare parents up to the root scope.
     /// </remarks>
     public static class ScopeValidator
     {
-        private const BindingFlags FieldFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public |
-                                                BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-
-        /// <summary>Validates one scope.</summary>
-        /// <param name="scope">The scope to validate.</param>
+        /// <summary>Validates one definition.</summary>
+        /// <param name="definition">The definition to validate.</param>
         /// <param name="inspectScene">
         ///     Also check the content of the scope's scene. Opens the scene additively (and closes it again) if it
         ///     is not loaded in the editor. Ignored in play mode.
         /// </param>
-        public static ScopeValidationResult Validate(Scope scope, bool inspectScene = true)
+        public static ScopeValidationResult Validate(ScopeDefinition definition, bool inspectScene = true)
         {
-            if (scope == null)
+            if (definition == null)
             {
-                throw new ArgumentNullException(nameof(scope));
+                throw new ArgumentNullException(nameof(definition));
             }
 
             List<ScopeIssue> issues = new();
-            List<SingletonRequirement> requirements = new();
+            List<ContractRequirement> requirements = new();
 
-            ValidateManagers(scope, issues);
-            List<Scope> ancestors = CollectDeclaredAncestors(scope, issues);
-            ValidateSingletons(scope, ancestors, issues, requirements);
-            bool sceneInspected = ValidateScene(scope, inspectScene, issues);
+            ValidateManagers(definition, issues);
+            List<ScopeDefinition> ancestors = CollectDeclaredAncestors(definition, issues);
+            ValidateContracts(definition, ancestors, issues, requirements);
+            List<int> order = ValidateOrder(definition, issues);
+            ValidateSceneFields(definition, issues);
+            bool sceneInspected = ValidateScene(definition, inspectScene, issues);
 
-            return new ScopeValidationResult(scope, issues, requirements, sceneInspected);
+            return new ScopeValidationResult(definition, issues, requirements, order, sceneInspected);
         }
 
-        /// <summary>Validates every Scope asset in the project (including packages).</summary>
+        /// <summary>Validates every scope definition in the project (including packages).</summary>
         /// <param name="inspectScenes">See <see cref="Validate" />.</param>
         public static IReadOnlyList<ScopeValidationResult> ValidateAll(bool inspectScenes = true)
         {
             List<ScopeValidationResult> results = new();
-            foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(Scope)}"))
+            foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(ScopeDefinition)}"))
             {
-                Scope scope = AssetDatabase.LoadAssetAtPath<Scope>(AssetDatabase.GUIDToAssetPath(guid));
-                if (scope != null)
+                ScopeDefinition definition =
+                    AssetDatabase.LoadAssetAtPath<ScopeDefinition>(AssetDatabase.GUIDToAssetPath(guid));
+                if (definition != null)
                 {
-                    results.Add(Validate(scope, inspectScenes));
+                    results.Add(Validate(definition, inspectScenes));
                 }
             }
 
             return results;
         }
 
-        /// <summary>
-        ///     The singleton types a manager of <paramref name="managerType" /> is registered as: the concrete type
-        ///     (if it implements <see cref="ISingleton" />) and every <see cref="ISingletonContract{T}" />.
-        /// </summary>
-        public static IReadOnlyList<Type> GetProvidedSingletons(Type managerType)
+        /// <summary>The manager contracts a manager of <paramref name="managerType" /> provides.</summary>
+        public static IReadOnlyList<Type> GetProvidedContracts(Type managerType)
         {
-            if (managerType == null)
-            {
-                throw new ArgumentNullException(nameof(managerType));
-            }
-
-            List<Type> provided = new();
-            if (typeof(ISingleton).IsAssignableFrom(managerType))
-            {
-                provided.Add(managerType);
-                provided.AddRange(SingletonRegistry.GetContractTypes(managerType));
-            }
-
-            return provided;
+            return Injector.GetContracts(managerType);
         }
 
         /// <summary>
-        ///     The singleton types a manager of <paramref name="managerType" /> requires: the type arguments of its
-        ///     <see cref="Singleton{T}" /> fields (including inherited and private ones) and of its
-        ///     <see cref="RequiresSingletonAttribute" />s.
+        ///     The types of the <see cref="InjectAttribute" /> fields of <paramref name="managerType" /> (including
+        ///     inherited and private ones), without duplicates. Includes types that are not valid contracts.
         /// </summary>
-        public static IReadOnlyList<Type> GetRequiredSingletons(Type managerType)
+        public static IReadOnlyList<Type> GetInjectedContracts(Type managerType)
         {
-            if (managerType == null)
+            List<Type> injected = new();
+            foreach (InjectedField field in Injector.GetInfo(managerType).Fields)
             {
-                throw new ArgumentNullException(nameof(managerType));
-            }
-
-            List<Type> required = new();
-            for (Type type = managerType; type != null && type != typeof(object); type = type.BaseType)
-            {
-                foreach (FieldInfo field in type.GetFields(FieldFlags))
+                if (!injected.Contains(field.Field.FieldType))
                 {
-                    Type fieldType = field.FieldType;
-                    if (fieldType.IsGenericType && fieldType.GetGenericTypeDefinition() == typeof(Singleton<>))
-                    {
-                        AddUnique(required, fieldType.GetGenericArguments()[0]);
-                    }
+                    injected.Add(field.Field.FieldType);
                 }
             }
 
-            foreach (RequiresSingletonAttribute attribute in managerType.GetCustomAttributes(
-                         typeof(RequiresSingletonAttribute), true))
+            return injected;
+        }
+
+        /// <summary>The <see cref="SceneLink" /> keys of the <see cref="InjectSceneAttribute" /> fields of <paramref name="managerType" />.</summary>
+        public static IReadOnlyList<string> GetSceneKeys(Type managerType)
+        {
+            List<string> keys = new();
+            foreach (InjectedSceneField field in Injector.GetInfo(managerType).SceneFields)
             {
-                if (attribute.Type != null)
+                if (!string.IsNullOrEmpty(field.Key) && !keys.Contains(field.Key))
                 {
-                    AddUnique(required, attribute.Type);
+                    keys.Add(field.Key);
                 }
             }
 
-            return required;
+            return keys;
         }
 
         /// <summary>Checks the content of a scope's scene, given its root objects.</summary>
-        internal static List<ScopeIssue> ValidateSceneContent(Scope scope, string sceneName,
+        internal static List<ScopeIssue> ValidateSceneContent(ScopeDefinition definition, string sceneName,
             IEnumerable<GameObject> roots, Object context = null)
         {
             List<ScopeIssue> issues = new();
@@ -148,14 +131,14 @@ namespace Kott.Scopes
 
             if (sceneRoots.Count == 0)
             {
-                issues.Add(new ScopeIssue(scope, ScopeIssueKind.SceneWithoutSceneRoot, ScopeIssueSeverity.Error,
-                    $"The scene '{sceneName}' has no SceneRoot, so managers get no scene callbacks and SceneLinks are " +
-                    "not bound. Add one (Add Component > Scopes > Scene Root), or create the scene from the Scope " +
-                    "Scene template.", context));
+                issues.Add(new ScopeIssue(definition, ScopeIssueKind.SceneWithoutSceneRoot, ScopeIssueSeverity.Error,
+                    $"The scene '{sceneName}' has no SceneRoot, so nothing in it is injected, managers get no scene " +
+                    "callbacks and SceneLinks are not bound. Add one (Add Component > Scopes > Scene Root), or create " +
+                    "the scene from the Scope Scene template.", context));
             }
             else if (sceneRoots.Count > 1)
             {
-                issues.Add(new ScopeIssue(scope, ScopeIssueKind.MultipleSceneRoots, ScopeIssueSeverity.Error,
+                issues.Add(new ScopeIssue(definition, ScopeIssueKind.MultipleSceneRoots, ScopeIssueSeverity.Error,
                     $"The scene '{sceneName}' has {sceneRoots.Count} SceneRoots " +
                     $"({string.Join(", ", sceneRoots.ConvertAll(sceneRoot => $"'{sceneRoot.name}'"))}); only one " +
                     "is used. Remove the others.", context));
@@ -166,18 +149,52 @@ namespace Kott.Scopes
             {
                 if (string.IsNullOrEmpty(link.Key))
                 {
-                    issues.Add(new ScopeIssue(scope, ScopeIssueKind.EmptySceneLinkKey, ScopeIssueSeverity.Warning,
+                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.EmptySceneLinkKey, ScopeIssueSeverity.Warning,
                         $"The SceneLink on '{link.name}' in scene '{sceneName}' has no key and is ignored.", context));
                 }
                 else if (linksByKey.TryGetValue(link.Key, out SceneLink existing))
                 {
-                    issues.Add(new ScopeIssue(scope, ScopeIssueKind.DuplicateSceneLinkKey, ScopeIssueSeverity.Error,
+                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.DuplicateSceneLinkKey,
+                        ScopeIssueSeverity.Error,
                         $"Duplicate SceneLink key '{link.Key}' in scene '{sceneName}': on '{existing.name}' and " +
                         $"'{link.name}'. Keys must be unique within a scene.", context));
                 }
                 else
                 {
                     linksByKey.Add(link.Key, link);
+                }
+            }
+
+            foreach (Manager manager in definition.Managers)
+            {
+                if (manager == null)
+                {
+                    continue;
+                }
+
+                foreach (InjectedSceneField field in Injector.GetInfo(manager.GetType()).SceneFields)
+                {
+                    if (field.Optional || Injector.GetFieldProblem(field) != null)
+                    {
+                        continue;
+                    }
+
+                    string fieldName = $"{manager.GetType().Name}.{field.Field.Name}";
+                    Type type = field.Field.FieldType;
+                    if (!linksByKey.TryGetValue(field.Key, out SceneLink link))
+                    {
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLink,
+                            ScopeIssueSeverity.Error,
+                            $"{fieldName} needs the SceneLink '{field.Key}', which scene '{sceneName}' does not have. " +
+                            "Add a SceneLink with that key, or mark the field Optional.", context));
+                    }
+                    else if (type != typeof(GameObject) && link.GetComponent(type) == null)
+                    {
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLinkComponent,
+                            ScopeIssueSeverity.Error,
+                            $"{fieldName} needs a {type.Name} on SceneLink '{field.Key}' ('{link.name}' in scene " +
+                            $"'{sceneName}'), which it does not have.", context));
+                    }
                 }
             }
 
@@ -216,20 +233,20 @@ namespace Kott.Scopes
         ///     directly; the remaining missing types go to the remaining <c>null</c> slots in reference id order
         ///     (ids are allocated in creation order).
         /// </remarks>
-        internal static string[] GetUnresolvedManagerTypes(Scope scope)
+        internal static string[] GetUnresolvedManagerTypes(ScopeDefinition definition)
         {
-            IReadOnlyList<Manager> managers = scope.Managers;
+            IReadOnlyList<Manager> managers = definition.Managers;
             string[] result = new string[managers.Count];
-            Dictionary<long, ManagedReferenceMissingType> missing = GetMissingTypes(scope);
+            Dictionary<long, ManagedReferenceMissingType> missing = GetMissingTypes(definition);
             if (missing.Count == 0)
             {
                 return result;
             }
 
             List<int> unmatchedSlots = new();
-            using (SerializedObject serializedObject = new(scope))
+            using (SerializedObject serializedObject = new(definition))
             {
-                SerializedProperty list = serializedObject.FindProperty(Scope.ManagersField);
+                SerializedProperty list = serializedObject.FindProperty(ScopeDefinition.ManagersField);
                 for (int i = 0; i < managers.Count && i < list.arraySize; i++)
                 {
                     if (managers[i] != null)
@@ -260,44 +277,48 @@ namespace Kott.Scopes
             return result;
         }
 
-        private static void ValidateManagers(Scope scope, List<ScopeIssue> issues)
+        private static void ValidateManagers(ScopeDefinition definition, List<ScopeIssue> issues)
         {
-            string[] unresolved = GetUnresolvedManagerTypes(scope);
-            for (int i = 0; i < scope.Managers.Count; i++)
+            string[] unresolved = GetUnresolvedManagerTypes(definition);
+            for (int i = 0; i < definition.Managers.Count; i++)
             {
-                if (scope.Managers[i] != null)
+                if (definition.Managers[i] != null)
                 {
                     continue;
                 }
 
                 if (unresolved[i] != null)
                 {
-                    issues.Add(new ScopeIssue(scope, ScopeIssueKind.UnresolvedManagerType, ScopeIssueSeverity.Error,
+                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.UnresolvedManagerType,
+                        ScopeIssueSeverity.Error,
                         $"Manager {i + 1} has the unresolved type '{unresolved[i]}'. Was the class renamed, moved or " +
                         "deleted? Restore it, or keep it loadable with [MovedFrom]."));
                 }
                 else
                 {
-                    issues.Add(new ScopeIssue(scope, ScopeIssueKind.EmptyManagerSlot, ScopeIssueSeverity.Error,
+                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.EmptyManagerSlot, ScopeIssueSeverity.Error,
                         $"Manager {i + 1} is empty. Remove the entry."));
                 }
             }
         }
 
-        /// <summary>The declared parents of <paramref name="scope" />, nearest first; stops at a cycle.</summary>
-        private static List<Scope> CollectDeclaredAncestors(Scope scope, List<ScopeIssue> issues)
+        /// <summary>The declared parents of <paramref name="definition" />, nearest first; stops at a cycle.</summary>
+        private static List<ScopeDefinition> CollectDeclaredAncestors(ScopeDefinition definition,
+            List<ScopeIssue> issues)
         {
-            List<Scope> ancestors = new();
-            HashSet<Scope> visited = new() { scope };
+            List<ScopeDefinition> ancestors = new();
+            HashSet<ScopeDefinition> visited = new() { definition };
 
-            for (Scope current = scope.DeclaredParent; current != null; current = current.DeclaredParent)
+            for (ScopeDefinition current = definition.DeclaredParent;
+                 current != null;
+                 current = current.DeclaredParent)
             {
                 if (!visited.Add(current))
                 {
-                    List<string> names = new() { scope.name };
+                    List<string> names = new() { definition.name };
                     names.AddRange(ancestors.ConvertAll(ancestor => ancestor.name));
                     names.Add(current.name);
-                    issues.Add(new ScopeIssue(scope, ScopeIssueKind.DeclaredParentCycle, ScopeIssueSeverity.Error,
+                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.DeclaredParentCycle, ScopeIssueSeverity.Error,
                         $"The declared parents form a cycle: {string.Join(" → ", names)}."));
                     break;
                 }
@@ -308,12 +329,12 @@ namespace Kott.Scopes
             return ancestors;
         }
 
-        private static void ValidateSingletons(Scope scope, List<Scope> ancestors, List<ScopeIssue> issues,
-            List<SingletonRequirement> requirements)
+        private static void ValidateContracts(ScopeDefinition definition, List<ScopeDefinition> ancestors,
+            List<ScopeIssue> issues, List<ContractRequirement> requirements)
         {
             // duplicates among the ancestors themselves are reported when those are validated
-            Dictionary<Type, (Scope Scope, Type Manager)> inherited = new();
-            foreach (Scope ancestor in ancestors)
+            Dictionary<Type, (ScopeDefinition Definition, Type Manager)> inherited = new();
+            foreach (ScopeDefinition ancestor in ancestors)
             {
                 foreach (Manager manager in ancestor.Managers)
                 {
@@ -322,43 +343,41 @@ namespace Kott.Scopes
                         continue;
                     }
 
-                    foreach (Type type in GetProvidedSingletons(manager.GetType()))
+                    foreach (Type type in Injector.GetContracts(manager.GetType()))
                     {
-                        if (!inherited.ContainsKey(type))
-                        {
-                            inherited.Add(type, (ancestor, manager.GetType()));
-                        }
+                        inherited.TryAdd(type, (ancestor, manager.GetType()));
                     }
                 }
             }
 
-            Dictionary<Type, (Scope Scope, Type Manager)> own = new();
-            foreach (Manager manager in scope.Managers)
+            Dictionary<Type, (ScopeDefinition Definition, Type Manager)> own = new();
+            foreach (Manager manager in definition.Managers)
             {
                 if (manager == null)
                 {
                     continue;
                 }
 
-                foreach (Type type in GetProvidedSingletons(manager.GetType()))
+                foreach (Type type in Injector.GetContracts(manager.GetType()))
                 {
-                    if (own.TryGetValue(type, out (Scope Scope, Type Manager) existing) ||
+                    if (own.TryGetValue(type, out (ScopeDefinition Definition, Type Manager) existing) ||
                         inherited.TryGetValue(type, out existing))
                     {
-                        issues.Add(new ScopeIssue(scope, ScopeIssueKind.DuplicateSingleton, ScopeIssueSeverity.Error,
-                            $"'{type.Name}' is provided twice: by {existing.Manager.Name} in '{existing.Scope.name}' " +
-                            $"and by {manager.GetType().Name} in '{scope.name}'. Only one provider can be loaded at a " +
-                            "time."));
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.DuplicateContract,
+                            ScopeIssueSeverity.Error,
+                            $"'{type.Name}' is provided twice: by {existing.Manager.Name} in " +
+                            $"'{existing.Definition.name}' and by {manager.GetType().Name} in '{definition.name}'. A " +
+                            "contract can only have one provider per scope chain."));
                     }
                     else
                     {
-                        own.Add(type, (scope, manager.GetType()));
+                        own.Add(type, (definition, manager.GetType()));
                     }
                 }
             }
 
-            Dictionary<Type, SingletonRequirement> requirementsByType = new();
-            foreach (Manager manager in scope.Managers)
+            Dictionary<Type, ContractRequirement> requirementsByType = new();
+            foreach (Manager manager in definition.Managers)
             {
                 if (manager == null)
                 {
@@ -366,70 +385,110 @@ namespace Kott.Scopes
                 }
 
                 Type managerType = manager.GetType();
-                foreach (Type type in GetRequiredSingletons(managerType))
+                foreach (InjectedField field in Injector.GetInfo(managerType).Fields)
                 {
-                    string problem = GetRequirementProblem(type);
+                    string problem = Injector.GetFieldProblem(field);
                     if (problem != null)
                     {
-                        issues.Add(new ScopeIssue(scope, ScopeIssueKind.InvalidRequirement, ScopeIssueSeverity.Error,
-                            $"{managerType.Name} requires '{type.Name}', which {problem}"));
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.InvalidInjection,
+                            ScopeIssueSeverity.Error, $"[Inject] {managerType.Name}.{field.Field.Name}: {problem}"));
                         continue;
                     }
 
-                    if (!requirementsByType.TryGetValue(type, out SingletonRequirement requirement))
+                    Type type = field.Field.FieldType;
+                    if (!requirementsByType.TryGetValue(type, out ContractRequirement requirement))
                     {
-                        requirement = new SingletonRequirement(type);
+                        requirement = new ContractRequirement(type);
                         requirementsByType.Add(type, requirement);
                         requirements.Add(requirement);
                     }
 
-                    requirement.AddRequiredBy(managerType);
+                    requirement.AddRequiredBy(managerType, field.Optional);
                 }
             }
 
-            foreach (SingletonRequirement requirement in requirements)
+            foreach (ContractRequirement requirement in requirements)
             {
-                if (own.TryGetValue(requirement.Type, out (Scope Scope, Type Manager) provider) ||
+                if (own.TryGetValue(requirement.Type, out (ScopeDefinition Definition, Type Manager) provider) ||
                     inherited.TryGetValue(requirement.Type, out provider))
                 {
-                    requirement.ProvidedBy = provider.Scope;
+                    requirement.ProvidedBy = provider.Definition;
                     requirement.Provider = provider.Manager;
                     continue;
                 }
 
+                if (requirement.IsOptional)
+                {
+                    continue;
+                }
+
                 string requiredBy = string.Join(", ", requirement.RequiredBy.Select(type => type.Name));
-                string message = ancestors.Count > 0
-                    ? $"'{requirement.Type.Name}' (required by {requiredBy}) is not provided by '{scope.name}' or " +
-                      "its declared parents."
-                    : $"'{requirement.Type.Name}' (required by {requiredBy}) is not provided by '{scope.name}'. " +
+                bool hasDeclaredParent = ancestors.Count > 0;
+                string message = hasDeclaredParent
+                    ? $"'{requirement.Type.Name}' (injected by {requiredBy}) is not provided by '{definition.name}' " +
+                      "or its declared parents."
+                    : $"'{requirement.Type.Name}' (injected by {requiredBy}) is not provided by '{definition.name}'. " +
                       "Declare a parent scope that provides it, or make sure the scope it is loaded under does.";
-                issues.Add(new ScopeIssue(scope, ScopeIssueKind.MissingSingleton, ScopeIssueSeverity.Warning,
-                    message));
+                issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingContract,
+                    hasDeclaredParent ? ScopeIssueSeverity.Error : ScopeIssueSeverity.Warning, message));
             }
         }
 
-        /// <summary>Why <paramref name="type" /> can never be resolved as a singleton, or <c>null</c>.</summary>
-        private static string GetRequirementProblem(Type type)
+        /// <returns>The initialization order, or an empty list if it cannot be computed.</returns>
+        private static List<int> ValidateOrder(ScopeDefinition definition, List<ScopeIssue> issues)
         {
-            if (!typeof(ISingleton).IsAssignableFrom(type))
+            if (definition.Managers.Any(manager => manager == null))
             {
-                return "is not a singleton type. Implement ISingleton or a singleton contract.";
+                return new List<int>();
             }
 
-            if (type.IsInterface && !type.IsGenericTypeDefinition &&
-                !typeof(ISingletonContract<>).MakeGenericType(type).IsAssignableFrom(type))
+            List<Type> types = definition.Managers.Select(manager => manager.GetType()).ToList();
+            if (InitializationOrder.TryCompute(types, out List<int> order, out List<int> cycle))
             {
-                return $"is an interface but not a singleton contract. Declare it as '{type.Name} : " +
-                       $"ISingletonContract<{type.Name}>'.";
+                return order;
             }
 
-            return null;
+            issues.Add(new ScopeIssue(definition, ScopeIssueKind.DependencyCycle, ScopeIssueSeverity.Error,
+                $"The managers inject each other in a cycle: {InitializationOrder.DescribeCycle(types, cycle)}. " +
+                "Break it, e.g. by moving shared state into a third manager."));
+            return new List<int>();
+        }
+
+        private static void ValidateSceneFields(ScopeDefinition definition, List<ScopeIssue> issues)
+        {
+            bool hasScene = definition.Scene is { IsAssigned: true };
+            foreach (Manager manager in definition.Managers)
+            {
+                if (manager == null)
+                {
+                    continue;
+                }
+
+                Type managerType = manager.GetType();
+                foreach (InjectedSceneField field in Injector.GetInfo(managerType).SceneFields)
+                {
+                    string problem = Injector.GetFieldProblem(field);
+                    if (problem != null)
+                    {
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.InvalidInjection,
+                            ScopeIssueSeverity.Error,
+                            $"[InjectScene] {managerType.Name}.{field.Field.Name}: {problem}"));
+                    }
+                    else if (!hasScene && !field.Optional)
+                    {
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.SceneInjectionWithoutScene,
+                            ScopeIssueSeverity.Error,
+                            $"{managerType.Name}.{field.Field.Name} needs the SceneLink '{field.Key}', but " +
+                            $"'{definition.name}' has no scene. Assign a scene, or mark the field Optional."));
+                    }
+                }
+            }
         }
 
         /// <returns>Whether the scene's content was inspected.</returns>
-        private static bool ValidateScene(Scope scope, bool inspectScene, List<ScopeIssue> issues)
+        private static bool ValidateScene(ScopeDefinition definition, bool inspectScene, List<ScopeIssue> issues)
         {
-            SceneReference reference = scope.Scene;
+            SceneReference reference = definition.Scene;
             if (reference == null || !reference.IsAssigned)
             {
                 return false;
@@ -445,7 +504,7 @@ namespace Kott.Scopes
             string scenePath = authoring.GetScenePath(reference);
             if (scenePath == null)
             {
-                issues.Add(new ScopeIssue(scope, ScopeIssueKind.SceneNotFound, ScopeIssueSeverity.Error,
+                issues.Add(new ScopeIssue(definition, ScopeIssueKind.SceneNotFound, ScopeIssueSeverity.Error,
                     $"The scene '{reference.DisplayName}' does not exist. Assign an existing scene, or set the scene " +
                     "to None."));
                 return false;
@@ -455,8 +514,9 @@ namespace Kott.Scopes
             string problem = authoring.GetRegistrationProblem(reference, scenePath);
             if (problem != null)
             {
-                issues.Add(new ScopeIssue(scope, ScopeIssueKind.SceneNotRegistered, ScopeIssueSeverity.Error, problem,
-                    sceneAsset));
+                issues.Add(new ScopeIssue(definition, ScopeIssueKind.SceneNotRegistered, ScopeIssueSeverity.Error,
+                    problem, sceneAsset, $"Register with {authoring.DisplayName}",
+                    () => RegisterScene(definition, authoring, scenePath)));
             }
 
             if (!inspectScene || EditorApplication.isPlayingOrWillChangePlaymode)
@@ -474,7 +534,8 @@ namespace Kott.Scopes
 
             try
             {
-                issues.AddRange(ValidateSceneContent(scope, sceneAsset.name, scene.GetRootGameObjects(), sceneAsset));
+                issues.AddRange(ValidateSceneContent(definition, sceneAsset.name, scene.GetRootGameObjects(),
+                    sceneAsset));
             }
             finally
             {
@@ -487,11 +548,16 @@ namespace Kott.Scopes
             return true;
         }
 
-        private static void AddUnique(List<Type> types, Type type)
+        private static void RegisterScene(ScopeDefinition definition, SceneReferenceAuthoring authoring,
+            string scenePath)
         {
-            if (!types.Contains(type))
+            SceneReference reference = authoring.CreateAndRegister(scenePath);
+            Undo.RecordObject(definition, "Register Scope Scene");
+            definition.SetScene(reference);
+            EditorUtility.SetDirty(definition);
+            if (EditorUtility.IsPersistent(definition))
             {
-                types.Add(type);
+                AssetDatabase.SaveAssetIfDirty(definition);
             }
         }
     }

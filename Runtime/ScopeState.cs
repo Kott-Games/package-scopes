@@ -1,6 +1,6 @@
 namespace Kott.Scopes
 {
-    /// <summary>Lifecycle state of a <see cref="RuntimeScope" />.</summary>
+    /// <summary>Lifecycle state of a <see cref="Scope" />.</summary>
     public enum ScopeState
     {
         /// <summary>Managers are initializing or the scene is loading.</summary>

@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Kott.Scopes
 {
-    /// <summary>Creates a Scope asset together with its scene (from the Scope Scene template) in one step.</summary>
+    /// <summary>Creates a scope definition together with its scene (from the Scope Scene template) in one step.</summary>
     internal static class ScopeCreation
     {
         internal const string TemplatePath = "Packages/com.kott.scopes/Runtime/ScopeScene.scenetemplate";
@@ -17,11 +17,11 @@ namespace Kott.Scopes
             CreateInteractive(SceneReferenceAuthoring.For(typeof(BuildSceneReference)));
         }
 
-        /// <summary>Asks for the Scope path, then creates Scope and scene and selects the Scope.</summary>
+        /// <summary>Asks for the definition path, then creates definition and scene and selects the definition.</summary>
         internal static void CreateInteractive(SceneReferenceAuthoring authoring)
         {
             string scopePath = EditorUtility.SaveFilePanelInProject("Create Scope with Scene", "NewScope", "asset",
-                $"The scene is created next to the Scope (same name) and loaded through {authoring.DisplayName}.",
+                $"The scene is created next to the definition (same name) and loaded through {authoring.DisplayName}.",
                 GetSelectedFolder());
             if (string.IsNullOrEmpty(scopePath))
             {
@@ -30,9 +30,9 @@ namespace Kott.Scopes
 
             try
             {
-                Scope scope = CreateWithScene(scopePath, authoring);
-                Selection.activeObject = scope;
-                EditorGUIUtility.PingObject(scope);
+                ScopeDefinition definition = CreateWithScene(scopePath, authoring);
+                Selection.activeObject = definition;
+                EditorGUIUtility.PingObject(definition);
             }
             catch (Exception exception)
             {
@@ -41,11 +41,11 @@ namespace Kott.Scopes
         }
 
         /// <summary>
-        ///     Creates a Scope at <paramref name="scopePath" /> and a scene with the same name next to it, copied from
+        ///     Creates a scope definition at <paramref name="scopePath" /> and a scene with the same name next to it, copied from
         ///     the Scope Scene template and registered through <paramref name="authoring" />.
         /// </summary>
         /// <exception cref="InvalidOperationException">An asset already exists at either path, or the template is missing.</exception>
-        internal static Scope CreateWithScene(string scopePath, SceneReferenceAuthoring authoring)
+        internal static ScopeDefinition CreateWithScene(string scopePath, SceneReferenceAuthoring authoring)
         {
             if (authoring == null)
             {
@@ -72,11 +72,11 @@ namespace Kott.Scopes
                 throw new InvalidOperationException($"Could not create the scene '{scenePath}'.");
             }
 
-            Scope scope = ScriptableObject.CreateInstance<Scope>();
-            scope.SetScene(authoring.CreateAndRegister(scenePath));
-            AssetDatabase.CreateAsset(scope, scopePath);
+            ScopeDefinition definition = ScriptableObject.CreateInstance<ScopeDefinition>();
+            definition.SetScene(authoring.CreateAndRegister(scenePath));
+            AssetDatabase.CreateAsset(definition, scopePath);
             AssetDatabase.SaveAssets();
-            return scope;
+            return definition;
         }
 
         private static string GetSelectedFolder()

@@ -10,10 +10,11 @@ using UnityEngine;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Scope inspector: scene with loader picker and Open button, declared parent, ordered manager list with
-    ///     type picker and provided contracts, and a Health section with the <see cref="ScopeValidator" /> results.
+    ///     Scope definition inspector: scene with loader picker and Open button, declared parent, manager list with
+    ///     type picker and each manager's contracts (provided, injected and where from, scene keys), the effective
+    ///     initialization order, and a Health section with the <see cref="ScopeValidator" /> results.
     /// </summary>
-    [CustomEditor(typeof(Scope))]
+    [CustomEditor(typeof(ScopeDefinition))]
     internal sealed class ScopeEditor : UnityEditor.Editor
     {
         private const float Indent = 12f;
@@ -23,11 +24,11 @@ namespace Kott.Scopes
             new("Scene", "Loaded with the scope after its managers initialized. None = scene-less scope.");
 
         private static readonly GUIContent ParentLabel = new("Parent",
-            "The scope this one is expected to be loaded under (optional). Validation resolves required singletons " +
+            "The scope this one is expected to be loaded under (optional). Validation resolves injected contracts " +
             "through it; loading under a different parent logs a warning.");
 
         private static GUIStyle _missingStyle;
-        private static GUIStyle _providesStyle;
+        private static GUIStyle _detailStyle;
 
         private readonly AdvancedDropdownState _dropdownState = new();
 
@@ -36,6 +37,7 @@ namespace Kott.Scopes
         private SerializedProperty _managersProperty;
         private ReorderableList _managerList;
         private string[] _unresolvedTypes = Array.Empty<string>();
+        private string[] _managerDetails = Array.Empty<string>();
         private ScopeValidationResult _validation;
 
         private static GUIStyle MissingStyle =>
@@ -44,23 +46,23 @@ namespace Kott.Scopes
                 normal = { textColor = new Color(0.9f, 0.3f, 0.3f) },
             };
 
-        private static GUIStyle ProvidesStyle =>
-            _providesStyle ??= new GUIStyle(EditorStyles.miniLabel)
+        private static GUIStyle DetailStyle =>
+            _detailStyle ??= new GUIStyle(EditorStyles.miniLabel)
             {
-                alignment = TextAnchor.MiddleRight,
+                clipping = TextClipping.Clip,
             };
 
-        private Scope Scope => (Scope)target;
+        private ScopeDefinition Definition => (ScopeDefinition)target;
 
         private void OnEnable()
         {
-            _sceneProperty = serializedObject.FindProperty(Scope.SceneField);
-            _parentProperty = serializedObject.FindProperty(Scope.DeclaredParentField);
-            _managersProperty = serializedObject.FindProperty(Scope.ManagersField);
+            _sceneProperty = serializedObject.FindProperty(ScopeDefinition.SceneField);
+            _parentProperty = serializedObject.FindProperty(ScopeDefinition.DeclaredParentField);
+            _managersProperty = serializedObject.FindProperty(ScopeDefinition.ManagersField);
 
             _managerList = new ReorderableList(serializedObject, _managersProperty, true, true, true, true)
             {
-                drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Managers (initialization order)"),
+                drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Managers"),
                 drawElementCallback = DrawManager,
                 elementHeightCallback = GetManagerHeight,
                 onAddDropdownCallback = (rect, _) => new ManagerTypeDropdown(_dropdownState, AddManager).Show(rect),
@@ -92,6 +94,7 @@ namespace Kott.Scopes
                 Revalidate(false);
             }
 
+            DrawInitializationOrder();
             DrawHealth();
         }
 
@@ -103,13 +106,60 @@ namespace Kott.Scopes
 
         private void Revalidate(bool inspectScene)
         {
-            if (Scope == null)
+            if (Definition == null)
             {
                 return;
             }
 
-            _unresolvedTypes = ScopeValidator.GetUnresolvedManagerTypes(Scope);
-            _validation = ScopeValidator.Validate(Scope, inspectScene);
+            _unresolvedTypes = ScopeValidator.GetUnresolvedManagerTypes(Definition);
+            _validation = ScopeValidator.Validate(Definition, inspectScene);
+            _managerDetails = Definition.Managers
+                .Select(manager => manager != null ? DescribeManager(manager.GetType()) : null)
+                .ToArray();
+        }
+
+        /// <summary>"provides IFoo · needs IBar ← Core, IBaz ✗ · scene: key" for one manager, or <c>null</c>.</summary>
+        private string DescribeManager(Type type)
+        {
+            List<string> parts = new();
+            IReadOnlyList<Type> provided = ScopeValidator.GetProvidedContracts(type);
+            if (provided.Count > 0)
+            {
+                parts.Add("provides " + string.Join(", ", provided.Select(contract => contract.Name)));
+            }
+
+            IReadOnlyList<Type> injected = ScopeValidator.GetInjectedContracts(type);
+            if (injected.Count > 0)
+            {
+                parts.Add("needs " + string.Join(", ", injected.Select(DescribeRequirement)));
+            }
+
+            IReadOnlyList<string> sceneKeys = ScopeValidator.GetSceneKeys(type);
+            if (sceneKeys.Count > 0)
+            {
+                parts.Add("scene: " + string.Join(", ", sceneKeys));
+            }
+
+            return parts.Count > 0 ? string.Join("  ·  ", parts) : null;
+        }
+
+        private string DescribeRequirement(Type contract)
+        {
+            ContractRequirement requirement =
+                _validation.Requirements.FirstOrDefault(candidate => candidate.Type == contract);
+            if (requirement == null)
+            {
+                return $"{contract.Name} (invalid)";
+            }
+
+            if (!requirement.IsProvided)
+            {
+                return requirement.IsOptional ? $"{contract.Name} (optional, missing)" : $"{contract.Name} ✗";
+            }
+
+            return requirement.ProvidedBy == Definition
+                ? contract.Name
+                : $"{contract.Name} ← {requirement.ProvidedBy.name}";
         }
 
         private void DrawScene()
@@ -208,27 +258,31 @@ namespace Kott.Scopes
             Type type = manager.GetType();
             GUIContent title = new($"{index + 1}  {ObjectNames.NicifyVariableName(type.Name)}", type.FullName);
 
-            IReadOnlyList<Type> provided = ScopeValidator.GetProvidedSingletons(type);
-            if (provided.Count > 0)
-            {
-                string provides = "provides " + string.Join(", ", provided.Select(providedType => providedType.Name));
-                EditorGUI.LabelField(header, new GUIContent(provides, provides), ProvidesStyle);
-            }
-
             Rect foldout = new(header.x + Indent, header.y, header.width - Indent, header.height);
-            if (!element.hasVisibleChildren)
+            if (element.hasVisibleChildren)
+            {
+                element.isExpanded = EditorGUI.Foldout(foldout, element.isExpanded, title, true);
+            }
+            else
             {
                 EditorGUI.LabelField(foldout, title);
-                return;
-            }
-
-            element.isExpanded = EditorGUI.Foldout(foldout, element.isExpanded, title, true);
-            if (!element.isExpanded)
-            {
-                return;
             }
 
             float y = header.yMax + Spacing;
+            string detail = GetDetail(index);
+            if (detail != null)
+            {
+                Rect detailRect = new(rect.x + 2 * Indent, y, rect.width - 2 * Indent,
+                    EditorGUIUtility.singleLineHeight);
+                EditorGUI.LabelField(detailRect, new GUIContent(detail, detail), DetailStyle);
+                y = detailRect.yMax + Spacing;
+            }
+
+            if (!element.hasVisibleChildren || !element.isExpanded)
+            {
+                return;
+            }
+
             SerializedProperty child = element.Copy();
             SerializedProperty end = element.GetEndProperty();
             bool enterChildren = true;
@@ -245,7 +299,17 @@ namespace Kott.Scopes
         {
             SerializedProperty element = _managersProperty.GetArrayElementAtIndex(index);
             float height = EditorGUIUtility.singleLineHeight + 2 * Spacing;
-            if (element.managedReferenceValue == null || !element.isExpanded)
+            if (element.managedReferenceValue == null)
+            {
+                return height;
+            }
+
+            if (GetDetail(index) != null)
+            {
+                height += EditorGUIUtility.singleLineHeight + Spacing;
+            }
+
+            if (!element.hasVisibleChildren || !element.isExpanded)
             {
                 return height;
             }
@@ -262,6 +326,11 @@ namespace Kott.Scopes
             return height;
         }
 
+        private string GetDetail(int index)
+        {
+            return index < _managerDetails.Length ? _managerDetails[index] : null;
+        }
+
         private void AddManager(Type type)
         {
             serializedObject.Update();
@@ -274,6 +343,23 @@ namespace Kott.Scopes
 
             Revalidate(false);
             Repaint();
+        }
+
+        private void DrawInitializationOrder()
+        {
+            IReadOnlyList<Manager> managers = Definition.Managers;
+            if (_validation == null || _validation.InitializationOrder.Count < 2)
+            {
+                return;
+            }
+
+            string order = string.Join(" → ", _validation.InitializationOrder
+                .Where(index => index < managers.Count && managers[index] != null)
+                .Select(index => $"{index + 1} {ObjectNames.NicifyVariableName(managers[index].GetType().Name)}"));
+            EditorGUILayout.LabelField(new GUIContent("Initialization order:  " + order,
+                    "Managers initialize after the managers of this scope they inject, otherwise in list order. " +
+                    "They uninitialize in reverse."),
+                EditorStyles.wordWrappedMiniLabel);
         }
 
         private void DrawHealth()
@@ -298,32 +384,56 @@ namespace Kott.Scopes
                 return;
             }
 
-            foreach (SingletonRequirement requirement in _validation.Requirements)
+            foreach (ContractRequirement requirement in _validation.Requirements)
             {
                 string requiredBy =
-                    "required by " + string.Join(", ", requirement.RequiredBy.Select(type => type.Name));
-                GUIContent content = requirement.IsProvided
-                    ? new GUIContent($"{requirement.Type.Name}  ← {requirement.ProvidedBy.name}",
-                        EditorGUIUtility.IconContent("TestPassed").image, requiredBy)
-                    : new GUIContent($"{requirement.Type.Name}  not provided by this scope or its declared parents",
-                        EditorGUIUtility.IconContent("console.warnicon.sml").image, requiredBy);
+                    "injected by " + string.Join(", ", requirement.RequiredBy.Select(type => type.Name));
+                GUIContent content;
+                if (requirement.IsProvided)
+                {
+                    content = new GUIContent($"{requirement.Type.Name}  ← {requirement.ProvidedBy.name}",
+                        EditorGUIUtility.IconContent("TestPassed").image, requiredBy);
+                }
+                else if (requirement.IsOptional)
+                {
+                    content = new GUIContent(
+                        $"{requirement.Type.Name}  (optional) not provided by this scope or its declared parents",
+                        EditorGUIUtility.IconContent("console.infoicon.sml").image, requiredBy);
+                }
+                else
+                {
+                    string icon = Definition.DeclaredParent != null ? "console.erroricon.sml" : "console.warnicon.sml";
+                    content = new GUIContent(
+                        $"{requirement.Type.Name}  not provided by this scope or its declared parents",
+                        EditorGUIUtility.IconContent(icon).image, requiredBy);
+                }
+
                 EditorGUILayout.LabelField(content);
             }
 
             int shown = 0;
             foreach (ScopeIssue issue in _validation.Issues)
             {
-                if (issue.Kind == ScopeIssueKind.MissingSingleton)
+                if (issue.Kind == ScopeIssueKind.MissingContract)
                 {
                     continue; // listed with the requirements
                 }
 
                 EditorGUILayout.HelpBox(issue.Message,
                     issue.Severity == ScopeIssueSeverity.Error ? MessageType.Error : MessageType.Warning);
+                if (issue.CanFix && GUILayout.Button(issue.FixLabel, EditorStyles.miniButton))
+                {
+                    issue.Fix();
+                    serializedObject.Update();
+                    Revalidate(false);
+                    GUIUtility.ExitGUI();
+                }
+
                 shown++;
             }
 
-            if (shown == 0 && _validation.Requirements.All(requirement => requirement.IsProvided))
+            if (shown == 0 &&
+                _validation.Requirements.All(requirement => requirement.IsProvided || requirement.IsOptional))
             {
                 EditorGUILayout.LabelField(_validation.SceneInspected
                     ? "No issues."

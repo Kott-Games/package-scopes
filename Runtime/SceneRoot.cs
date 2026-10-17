@@ -4,9 +4,11 @@ using UnityEngine;
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Connects a scope's scene to its managers: binds <see cref="SceneLink" />s and calls
-    ///     <see cref="Manager.SceneAwake" /> / <see cref="Manager.SceneStart" /> before other scene objects'
-    ///     <c>Awake</c> / <c>Start</c>. Every scope scene needs exactly one (the ScopeScene template has it).
+    ///     Connects a scope's scene to its scope before other scene objects' <c>Awake</c>: binds
+    ///     <see cref="SceneLink" />s, fills the managers' <see cref="InjectSceneAttribute" /> fields, injects the
+    ///     <see cref="InjectAttribute" /> fields of all scene components, then calls
+    ///     <see cref="Manager.OnSceneAwake" /> (and <see cref="Manager.OnSceneStart" /> before other <c>Start</c>s).
+    ///     Every scope scene needs exactly one (the Scope Scene template has it).
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(-9001)]
@@ -14,16 +16,16 @@ namespace Kott.Scopes
     public sealed class SceneRoot : MonoBehaviour
     {
         /// <summary>The scope this scene belongs to; <c>null</c> if the scene was not loaded through a scope.</summary>
-        public RuntimeScope RuntimeScope { get; private set; }
+        public Scope Scope { get; private set; }
 
         private void Awake()
         {
-            RuntimeScope activating = ScopeSystem.ActivatingScope;
+            Scope activating = ScopeSystem.ActivatingScope;
             if (activating == null)
             {
                 Debug.LogWarning(
-                    $"SceneRoot in scene '{gameObject.scene.name}' was not loaded through a scope; manager scene callbacks are not invoked.",
-                    this);
+                    $"SceneRoot in scene '{gameObject.scene.name}' was not loaded through a scope; nothing is injected " +
+                    "and manager scene callbacks are not invoked.", this);
                 return;
             }
 
@@ -33,27 +35,27 @@ namespace Kott.Scopes
                 return;
             }
 
-            RuntimeScope = activating;
+            Scope = activating;
 
             try
             {
-                RuntimeScope.BindScene(gameObject.scene);
+                Scope.BindScene(gameObject.scene);
             }
             catch (Exception exception)
             {
                 // fails the load once the scene finished loading
-                RuntimeScope.SceneError = exception;
+                Scope.SceneError = exception;
                 return;
             }
 
-            RuntimeScope.InvokeSceneAwake();
+            Scope.InvokeSceneAwake();
         }
 
         private void Start()
         {
-            if (RuntimeScope is { SceneError: null })
+            if (Scope is { SceneError: null })
             {
-                RuntimeScope.InvokeSceneStart();
+                Scope.InvokeSceneStart();
             }
         }
     }

@@ -19,7 +19,7 @@ namespace Kott.Scopes
     /// </summary>
     /// <example>
     ///     <code>
-    /// ScopeOperation load = ScopeHandler.Instance.LoadScope(levelScope, parent: RuntimeScope);
+    /// ScopeOperation load = ScopeHandler.Instance.LoadScope(levelDefinition, parent: Scope);
     /// yield return load;
     /// if (!load.Succeeded)
     ///     ShowError(load.Exception.Message);
@@ -29,24 +29,24 @@ namespace Kott.Scopes
     {
         private Action<ScopeOperation> _completed;
 
-        internal ScopeOperation(ScopeOperationType type, Scope scope, RuntimeScope runtimeScope)
+        internal ScopeOperation(ScopeOperationType type, ScopeDefinition definition, Scope scope)
         {
             Type = type;
+            Definition = definition;
             Scope = scope;
-            RuntimeScope = runtimeScope;
         }
 
         /// <summary>Load or unload.</summary>
         public ScopeOperationType Type { get; }
 
-        /// <summary>The Scope asset being loaded or unloaded.</summary>
-        public Scope Scope { get; }
+        /// <summary>The definition being loaded or unloaded.</summary>
+        public ScopeDefinition Definition { get; }
 
         /// <summary>
         ///     The loaded scope (load: set once loading starts; state <see cref="ScopeState.Failed" /> on failure)
         ///     or the scope being unloaded.
         /// </summary>
-        public RuntimeScope RuntimeScope { get; internal set; }
+        public Scope Scope { get; internal set; }
 
         /// <summary>Whether the operation finished, successfully or not.</summary>
         public bool IsDone { get; private set; }
@@ -114,7 +114,7 @@ namespace Kott.Scopes
         public override string ToString()
         {
             string state = !IsDone ? "pending" : Succeeded ? "succeeded" : "failed";
-            return $"{Type} scope '{(Scope != null ? Scope.name : "?")}' ({state})";
+            return $"{Type} scope '{(Definition != null ? Definition.name : "?")}' ({state})";
         }
     }
 }

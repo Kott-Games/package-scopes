@@ -8,7 +8,7 @@ namespace Kott.Scopes
     /// <summary>How serious a <see cref="ScopeIssue" /> is.</summary>
     public enum ScopeIssueSeverity
     {
-        /// <summary>Probably a mistake, but the scope can still load (e.g. a dependency the actual parent may provide).</summary>
+        /// <summary>Probably a mistake, but the scope can still load (e.g. a contract the actual parent may provide).</summary>
         Warning,
 
         /// <summary>Loading the scope fails or misbehaves.</summary>
@@ -24,17 +24,26 @@ namespace Kott.Scopes
         /// <summary>A manager's stored type no longer exists (renamed, moved or deleted class).</summary>
         UnresolvedManagerType,
 
-        /// <summary>A manager requires a type that can never be resolved as a singleton.</summary>
-        InvalidRequirement,
+        /// <summary>
+        ///     An injected field can never be filled: an <see cref="InjectAttribute" /> type that is not a manager
+        ///     contract, or an <see cref="InjectSceneAttribute" /> with an empty key or unsupported type.
+        /// </summary>
+        InvalidInjection,
 
-        /// <summary>A required singleton is provided neither by the scope nor by its declared parents.</summary>
-        MissingSingleton,
+        /// <summary>A required contract is provided neither by the scope nor by its declared parents.</summary>
+        MissingContract,
 
-        /// <summary>A singleton type is provided twice within the scope and its declared parents.</summary>
-        DuplicateSingleton,
+        /// <summary>A contract is provided twice within the scope and its declared parents.</summary>
+        DuplicateContract,
+
+        /// <summary>Managers of the scope inject each other in a cycle, so there is no initialization order.</summary>
+        DependencyCycle,
 
         /// <summary>The declared parents form a cycle.</summary>
         DeclaredParentCycle,
+
+        /// <summary>A manager has required <see cref="InjectSceneAttribute" /> fields, but the scope has no scene.</summary>
+        SceneInjectionWithoutScene,
 
         /// <summary>The referenced scene asset does not exist.</summary>
         SceneNotFound,
@@ -53,23 +62,33 @@ namespace Kott.Scopes
 
         /// <summary>A <see cref="SceneLink" /> has no key.</summary>
         EmptySceneLinkKey,
+
+        /// <summary>An <see cref="InjectSceneAttribute" /> key has no <see cref="SceneLink" /> in the scene.</summary>
+        MissingSceneLink,
+
+        /// <summary>The <see cref="SceneLink" /> for an <see cref="InjectSceneAttribute" /> field lacks the field's component.</summary>
+        MissingSceneLinkComponent,
     }
 
     /// <summary>One problem found by <see cref="ScopeValidator" />.</summary>
     public sealed class ScopeIssue
     {
-        internal ScopeIssue(Scope scope, ScopeIssueKind kind, ScopeIssueSeverity severity, string message,
-            Object context = null)
+        private readonly Action _fix;
+
+        internal ScopeIssue(ScopeDefinition definition, ScopeIssueKind kind, ScopeIssueSeverity severity,
+            string message, Object context = null, string fixLabel = null, Action fix = null)
         {
-            Scope = scope;
+            Definition = definition;
             Kind = kind;
             Severity = severity;
             Message = message;
-            Context = context != null ? context : scope;
+            Context = context != null ? context : definition;
+            FixLabel = fix != null ? fixLabel ?? "Fix" : null;
+            _fix = fix;
         }
 
-        /// <summary>The validated scope.</summary>
-        public Scope Scope { get; }
+        /// <summary>The validated definition.</summary>
+        public ScopeDefinition Definition { get; }
 
         /// <summary>The violated rule.</summary>
         public ScopeIssueKind Kind { get; }
@@ -80,34 +99,56 @@ namespace Kott.Scopes
         /// <summary>Human-readable description, including how to fix it.</summary>
         public string Message { get; }
 
-        /// <summary>The asset to select to fix the issue: the scope, or its scene.</summary>
+        /// <summary>The asset to select to fix the issue: the definition, or its scene.</summary>
         public Object Context { get; }
+
+        /// <summary>Whether <see cref="Fix" /> can resolve the issue automatically.</summary>
+        public bool CanFix => _fix != null;
+
+        /// <summary>Button text for <see cref="Fix" />, e.g. "Add to Build Profile"; <c>null</c> if not fixable.</summary>
+        public string FixLabel { get; }
+
+        /// <summary>Resolves the issue (with undo where possible). Validate again afterwards.</summary>
+        /// <exception cref="InvalidOperationException">The issue cannot be fixed automatically.</exception>
+        public void Fix()
+        {
+            if (_fix == null)
+            {
+                throw new InvalidOperationException($"{Kind} issues cannot be fixed automatically.");
+            }
+
+            _fix();
+        }
 
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"[{Severity}] {(Scope != null ? Scope.name : "?")}: {Message}";
+            return $"[{Severity}] {(Definition != null ? Definition.name : "?")}: {Message}";
         }
     }
 
-    /// <summary>A singleton the managers of a scope require, and which scope provides it.</summary>
-    public sealed class SingletonRequirement
+    /// <summary>A contract the managers of a scope inject, and which scope provides it.</summary>
+    public sealed class ContractRequirement
     {
         private readonly List<Type> _requiredBy = new();
 
-        internal SingletonRequirement(Type type)
+        internal ContractRequirement(Type type)
         {
             Type = type;
+            IsOptional = true;
         }
 
-        /// <summary>The required singleton type.</summary>
+        /// <summary>The injected contract.</summary>
         public Type Type { get; }
 
-        /// <summary>The manager types that require it.</summary>
+        /// <summary>The manager types that inject it.</summary>
         public IReadOnlyList<Type> RequiredBy => _requiredBy;
 
-        /// <summary>The scope (this one or a declared parent) providing it, or <c>null</c>.</summary>
-        public Scope ProvidedBy { get; internal set; }
+        /// <summary>Whether every field injecting it is optional.</summary>
+        public bool IsOptional { get; private set; }
+
+        /// <summary>The definition (this one or a declared parent) providing it, or <c>null</c>.</summary>
+        public ScopeDefinition ProvidedBy { get; internal set; }
 
         /// <summary>The manager type providing it, or <c>null</c>.</summary>
         public Type Provider { get; internal set; }
@@ -115,35 +156,44 @@ namespace Kott.Scopes
         /// <summary>Whether the scope or one of its declared parents provides it.</summary>
         public bool IsProvided => Provider != null;
 
-        internal void AddRequiredBy(Type managerType)
+        internal void AddRequiredBy(Type managerType, bool optional)
         {
             if (!_requiredBy.Contains(managerType))
             {
                 _requiredBy.Add(managerType);
             }
+
+            IsOptional &= optional;
         }
     }
 
-    /// <summary>The result of validating one scope with <see cref="ScopeValidator" />.</summary>
+    /// <summary>The result of validating one definition with <see cref="ScopeValidator" />.</summary>
     public sealed class ScopeValidationResult
     {
-        internal ScopeValidationResult(Scope scope, List<ScopeIssue> issues, List<SingletonRequirement> requirements,
-            bool sceneInspected)
+        internal ScopeValidationResult(ScopeDefinition definition, List<ScopeIssue> issues,
+            List<ContractRequirement> requirements, List<int> initializationOrder, bool sceneInspected)
         {
-            Scope = scope;
+            Definition = definition;
             Issues = issues;
             Requirements = requirements;
+            InitializationOrder = initializationOrder;
             SceneInspected = sceneInspected;
         }
 
-        /// <summary>The validated scope.</summary>
-        public Scope Scope { get; }
+        /// <summary>The validated definition.</summary>
+        public ScopeDefinition Definition { get; }
 
         /// <summary>All problems found, in rule order.</summary>
         public IReadOnlyList<ScopeIssue> Issues { get; }
 
-        /// <summary>The singletons the scope's managers require and where they come from.</summary>
-        public IReadOnlyList<SingletonRequirement> Requirements { get; }
+        /// <summary>The contracts the scope's managers inject and where they come from.</summary>
+        public IReadOnlyList<ContractRequirement> Requirements { get; }
+
+        /// <summary>
+        ///     Indices into <see cref="ScopeDefinition.Managers" /> in the order the managers initialize; empty if
+        ///     there is a dependency cycle or an unresolved manager.
+        /// </summary>
+        public IReadOnlyList<int> InitializationOrder { get; }
 
         /// <summary>Whether the scene's content (SceneRoot, SceneLinks) was checked.</summary>
         public bool SceneInspected { get; }
@@ -169,7 +219,7 @@ namespace Kott.Scopes
         public override string ToString()
         {
             StringBuilder builder = new();
-            builder.Append($"Scope '{(Scope != null ? Scope.name : "?")}': {Issues.Count} issue(s)");
+            builder.Append($"Scope '{(Definition != null ? Definition.name : "?")}': {Issues.Count} issue(s)");
             foreach (ScopeIssue issue in Issues)
             {
                 builder.Append($"\n  [{issue.Severity}] {issue.Message}");
