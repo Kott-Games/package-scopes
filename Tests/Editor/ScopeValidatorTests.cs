@@ -136,7 +136,8 @@ namespace Kott.Scopes.Tests
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSingleton));
             Assert.That(issue.Severity, Is.EqualTo(ScopeIssueSeverity.Warning));
-            Assert.That(issue.Message, Does.StartWith("'IFooService' (required by FooConsumer) is not provided by 'Hub'."));
+            Assert.That(issue.Message,
+                Does.StartWith("'IFooService' (required by FooConsumer) is not provided by 'Hub'."));
             Assert.That(issue.Message, Does.Contain("Declare a parent scope"));
         }
 
@@ -186,7 +187,8 @@ namespace Kott.Scopes.Tests
             ScopeIssue issue = ScopeValidator.Validate(scope).Issues.Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.InvalidRequirement));
-            Assert.That(issue.Message, Does.Contain("'IPlainService', which is an interface but not a singleton contract"));
+            Assert.That(issue.Message,
+                Does.Contain("'IPlainService', which is an interface but not a singleton contract"));
         }
 
         [Test]
@@ -389,7 +391,8 @@ namespace Kott.Scopes.Tests
             ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateScope("S"), "Level", new[] { root }).Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateSceneLinkKey));
-            Assert.That(issue.Message, Does.StartWith("Duplicate SceneLink key 'door' in scene 'Level': on 'A' and 'B'."));
+            Assert.That(issue.Message,
+                Does.StartWith("Duplicate SceneLink key 'door' in scene 'Level': on 'A' and 'B'."));
         }
 
         [Test]

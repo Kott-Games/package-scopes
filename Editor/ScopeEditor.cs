@@ -38,15 +38,17 @@ namespace Kott.Scopes
         private string[] _unresolvedTypes = Array.Empty<string>();
         private ScopeValidationResult _validation;
 
-        private static GUIStyle MissingStyle => _missingStyle ??= new GUIStyle(EditorStyles.label)
-        {
-            normal = { textColor = new Color(0.9f, 0.3f, 0.3f) },
-        };
+        private static GUIStyle MissingStyle =>
+            _missingStyle ??= new GUIStyle(EditorStyles.label)
+            {
+                normal = { textColor = new Color(0.9f, 0.3f, 0.3f) },
+            };
 
-        private static GUIStyle ProvidesStyle => _providesStyle ??= new GUIStyle(EditorStyles.miniLabel)
-        {
-            alignment = TextAnchor.MiddleRight,
-        };
+        private static GUIStyle ProvidesStyle =>
+            _providesStyle ??= new GUIStyle(EditorStyles.miniLabel)
+            {
+                alignment = TextAnchor.MiddleRight,
+            };
 
         private Scope Scope => (Scope)target;
 
@@ -298,7 +300,8 @@ namespace Kott.Scopes
 
             foreach (SingletonRequirement requirement in _validation.Requirements)
             {
-                string requiredBy = "required by " + string.Join(", ", requirement.RequiredBy.Select(type => type.Name));
+                string requiredBy =
+                    "required by " + string.Join(", ", requirement.RequiredBy.Select(type => type.Name));
                 GUIContent content = requirement.IsProvided
                     ? new GUIContent($"{requirement.Type.Name}  ← {requirement.ProvidedBy.name}",
                         EditorGUIUtility.IconContent("TestPassed").image, requiredBy)

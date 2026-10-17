@@ -186,7 +186,9 @@ namespace Kott.Scopes
 
         internal static string FormatMissingType(ManagedReferenceMissingType missingType)
         {
-            string ns = string.IsNullOrEmpty(missingType.namespaceName) ? string.Empty : missingType.namespaceName + ".";
+            string ns = string.IsNullOrEmpty(missingType.namespaceName)
+                ? string.Empty
+                : missingType.namespaceName + ".";
             return $"{ns}{missingType.className}, {missingType.assemblyName}";
         }
 
