@@ -82,8 +82,8 @@ namespace Kott.Scopes.Testing
         }
 
         /// <summary>
-        ///     Sets the logger the <see cref="Manager.Logger" /> of injected managers logs through (tagged with their
-        ///     type name). Without it they log to <see cref="Debug.unityLogger" />.
+        ///     Sets <paramref name="logger" /> as <see cref="Manager.Logger" /> of injected managers. Without it they get
+        ///     <see cref="ScopeLogging.CreateDefaultLogger" /> with their type name as category.
         /// </summary>
         public TestInjector SetLogger(ILogger logger)
         {
@@ -113,7 +113,7 @@ namespace Kott.Scopes.Testing
             if (target is Manager manager)
             {
                 manager.Logger =
-                    new TaggedLogger(ScopeLogging.TagOf(manager.GetType()), () => _logger ?? Debug.unityLogger);
+                    _logger ?? ScopeLogging.CreateDefaultLogger(ScopeLogging.CategoryOf(manager.GetType()));
             }
 
             return target;

@@ -39,13 +39,11 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Inject_Manager_SetsLogger()
         {
-            RecordingLogHandler log = new();
-            log.Expect(LogType.Warning, "PlainManager: careful");
+            ILogger logger = new Logger(new RecordingLogHandler());
 
-            PlainManager manager = TestInjector.Create().SetLogger(log.Logger).Inject(new PlainManager());
-            manager.Logger.Log(LogType.Warning, "careful");
+            PlainManager manager = TestInjector.Create().SetLogger(logger).Inject(new PlainManager());
 
-            log.Verify();
+            Assert.That(manager.Logger, Is.SameAs(logger));
         }
 
         [Test]
@@ -53,7 +51,7 @@ namespace Kott.Scopes.Tests
         {
             PlainManager manager = TestInjector.Create().Inject(new PlainManager());
 
-            Assert.That(manager.Logger.Tag, Is.EqualTo(typeof(PlainManager).FullName));
+            Assert.That(manager.Logger, Is.Not.Null);
         }
 
         [Test]

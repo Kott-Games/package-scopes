@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -31,7 +30,7 @@ namespace Kott.Scopes.Tests
         {
             TestLog.Clear();
             _log = new RecordingLogHandler();
-            _system = new ScopeSystem(_routines.Add, rootParent: null, _log.Logger);
+            _system = new ScopeSystem(_routines.Add, rootParent: null, _ => _log.Logger);
         }
 
         [TearDown]
@@ -771,39 +770,41 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void Load_Managers_LoggerTaggedWithTheirTypeName()
+        public void Load_Managers_GetLoggerOfTheirTypeCategory()
         {
-            _log.Expect(LogType.Warning, $"^{Regex.Escape(typeof(PlainManager).FullName)}: low on coins$");
-            _log.Expect(LogType.Log, $"^{Regex.Escape(typeof(RecordingManager).FullName)}: 3 of 5$");
+            Dictionary<string, ILogger> created = new();
+            _system.LoggerFactory = category => created[category] = new Logger(new RecordingLogHandler());
+
             Scope scope = LoadAndRun(CreateDefinition("S", null, Recording("A"), new PlainManager()));
 
-            scope.Managers[1].Logger.Log(LogType.Warning, "low on coins");
-            scope.Managers[0].Logger.LogFormat(LogType.Log, "{0} of {1}", 3, 5);
-
-            Assert.That(scope.Managers[0].Logger.Tag, Is.EqualTo(typeof(RecordingManager).FullName));
+            Assert.That(created.Keys, Is.EquivalentTo(new[]
+            {
+                ScopeLogging.Category, typeof(RecordingManager).FullName, typeof(PlainManager).FullName,
+            }));
+            Assert.That(scope.Managers[0].Logger, Is.SameAs(created[typeof(RecordingManager).FullName]));
+            Assert.That(scope.Managers[1].Logger, Is.SameAs(created[typeof(PlainManager).FullName]));
         }
 
         [Test]
-        public void Logger_Replaced_LoadedManagersAndSystemFollow()
+        public void Load_FactoryReturnsNullForManager_FailsLoad()
         {
-            ScopeDefinition definition = CreateDefinition("S", null, Recording("A"));
-            Scope scope = LoadAndRun(definition);
-            RecordingLogHandler replacement = new();
-            replacement.Expect(LogType.Log, "RecordingManager: after");
-            replacement.Expect(LogType.Error, "^Kott.Scopes: Load of scope 'S' failed");
+            _system.LoggerFactory = category => category == ScopeLogging.Category ? _log.Logger : null;
+            _log.Expect(LogType.Error, "returned null for category");
 
-            _system.Logger = replacement.Logger;
-            scope.Managers[0].Logger.Log(LogType.Log, "after");
-            _system.LoadScope(definition, null, null); // already loaded: fails and logs
+            ScopeOperation load = _system.LoadScope(CreateDefinition("S", null, Recording("A")), null, null);
             RunAll();
 
-            replacement.Verify();
+            Assert.That(load.Exception, Is.InstanceOf<InvalidOperationException>());
+            Assert.That(TestLog.Entries, Does.Not.Contain("A.Initialize"));
         }
 
         [Test]
-        public void Logger_SetNull_Throws()
+        public void LoggerFactory_ReturnsNull_ThrowsAndKeepsPrevious()
         {
-            Assert.Throws<ArgumentNullException>(() => _system.Logger = null);
+            Func<string, ILogger> previous = _system.LoggerFactory;
+
+            Assert.Throws<InvalidOperationException>(() => _system.LoggerFactory = _ => null);
+            Assert.That(_system.LoggerFactory, Is.SameAs(previous));
             Assert.That(_system.Logger, Is.SameAs(_log.Logger));
         }
 

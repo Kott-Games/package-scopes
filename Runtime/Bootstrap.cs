@@ -30,9 +30,7 @@ namespace Kott.Scopes
         {
             if (_rootScope == null)
             {
-                ScopeHandler.Instance.Logger.Log(LogType.Error, ScopeLogging.Tag,
-                    "Bootstrap has no root scope assigned.",
-                    this);
+                ScopeHandler.Instance.Logger.Log(LogType.Error, (object)"Bootstrap has no root scope assigned.", this);
                 return;
             }
 
