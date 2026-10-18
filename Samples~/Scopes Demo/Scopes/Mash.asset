@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Mash
   m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
   _scene:
-    rid: 7000000000000000700
+    rid: 934263145045164033
   _declaredParent: {fileID: 11400000, guid: c72440a1665347f7b91a30058b35bd6b, type: 2}
   _managers:
   - rid: 7000000000000000701
@@ -21,7 +21,7 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 7000000000000000700
+    - rid: 934263145045164033
       type: {class: AddressableSceneReference, ns: Kott.Scopes, asm: Kott.Scopes.Addressables}
       data:
         _scene:

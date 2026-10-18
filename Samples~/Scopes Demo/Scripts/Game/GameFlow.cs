@@ -83,7 +83,8 @@ namespace Kott.Scopes.Demo
                 {
                     // IMiniGame is provided by whichever mini game is loaded: resolve it through the child scope
                     CurrentMiniGame = operation.Scope.Resolve<IMiniGame>();
-                    _overlay.Log($"playing {CurrentMiniGame.DisplayName} (resolved IMiniGame from {operation.Scope.Name})");
+                    _overlay.Log(
+                        $"playing {CurrentMiniGame.DisplayName} (resolved IMiniGame from {operation.Scope.Name})");
                     return;
                 }
 

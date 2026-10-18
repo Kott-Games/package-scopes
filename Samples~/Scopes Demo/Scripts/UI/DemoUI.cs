@@ -24,7 +24,8 @@ namespace Kott.Scopes.Demo
         private static Font _font;
         private static Sprite _whiteSprite;
 
-        private static Font Font => _font != null ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        private static Font Font =>
+            _font != null ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         /// <summary>Creates a screen-space overlay canvas (1920×1080 reference) under <paramref name="parent" />.</summary>
         public static RectTransform CreateCanvas(string name, Transform parent, int sortingOrder)

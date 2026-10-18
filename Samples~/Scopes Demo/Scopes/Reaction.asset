@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Reaction
   m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
   _scene:
-    rid: 7000000000000000600
+    rid: 934263145045164035
   _declaredParent: {fileID: 11400000, guid: c72440a1665347f7b91a30058b35bd6b, type: 2}
   _managers:
   - rid: 7000000000000000601
@@ -21,7 +21,7 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 7000000000000000600
+    - rid: 934263145045164035
       type: {class: AddressableSceneReference, ns: Kott.Scopes, asm: Kott.Scopes.Addressables}
       data:
         _scene:

@@ -63,7 +63,8 @@ namespace Kott.Scopes.Demo
             _tiles.Sort((a, b) => a.Index.CompareTo(b.Index));
             if (_tiles.Count != _session.TileCount)
             {
-                Debug.LogWarning($"The Board scene has {_tiles.Count} tiles, but the session expects {_session.TileCount}.");
+                Debug.LogWarning(
+                    $"The Board scene has {_tiles.Count} tiles, but the session expects {_session.TileCount}.");
             }
 
             for (int i = 0; i < _session.Players.Count; i++)

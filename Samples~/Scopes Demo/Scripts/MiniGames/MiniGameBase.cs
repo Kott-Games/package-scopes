@@ -100,7 +100,8 @@ namespace Kott.Scopes.Demo
                 _session.CompleteMiniGame(coins);
             }
 
-            Status.text = $"{summary}\n<size=32>Score {score}{(best ? " - new best!" : string.Empty)} · +{coins} coins</size>";
+            Status.text =
+                $"{summary}\n<size=32>Score {score}{(best ? " - new best!" : string.Empty)} · +{coins} coins</size>";
             Scope.StartCoroutine(ReturnToBoard());
         }
 

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Menu
   m_EditorClassIdentifier: Kott.Scopes::Kott.Scopes.ScopeDefinition
   _scene:
-    rid: 7000000000000000100
+    rid: 934263145045164034
   _declaredParent: {fileID: 11400000, guid: b4fe55eb1d2f4ed89b90534ed6cde4f2, type: 2}
   _managers:
   - rid: 7000000000000000101
@@ -21,7 +21,7 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 7000000000000000100
+    - rid: 934263145045164034
       type: {class: BuildSceneReference, ns: Kott.Scopes, asm: Kott.Scopes}
       data:
         _scenePath: Assets/Samples/Kott Scopes/Scopes Demo/Scenes/Menu.unity
