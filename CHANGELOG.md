@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a scene from the Scope Scene template and registers the scene with the loader.
 - In the editor, build-profile scenes that are missing from the scene list still load in play mode, with a
   warning that a build will fail to load them.
+- "Scopes Demo" sample: a small board game with a root scope, swapped Menu/Game and Board/mini game
+  scopes, scene-less overlay scopes, a loading screen, a live scope tree overlay, injection across levels,
+  both scene loaders and a failing mini game; with EditMode tests of a manager and a PlayMode smoke test.
 
 ### Changed
 - **Breaking:** renamed the `Scope` asset to `ScopeDefinition` and `RuntimeScope` (the loaded instance) to

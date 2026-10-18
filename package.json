@@ -16,5 +16,12 @@
   "documentationUrl": "https://github.com/Kott-Games/package-scopes#readme",
   "dependencies": {
     "com.kott.utilities": "1.0.0"
-  }
+  },
+  "samples": [
+    {
+      "displayName": "Scopes Demo",
+      "description": "A small board game showing the scope tree, scoped dependency injection, both scene loaders, loading screens and failure handling. Requires Addressables and uGUI.",
+      "path": "Samples~/Scopes Demo"
+    }
+  ]
 }

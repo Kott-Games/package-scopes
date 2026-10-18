@@ -1,0 +1,18 @@
+{
+    "name": "Kott.Scopes.Demo",
+    "rootNamespace": "Kott.Scopes.Demo",
+    "references": [
+        "GUID:654bc5fac8fa28e448395e5b8ed61856",
+        "GUID:b0f31b71235c2cf4ba6fdc19f8bc7546",
+        "GUID:2bafac87e7f4b9b418d9448d219b01ab"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
