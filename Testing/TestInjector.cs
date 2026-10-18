@@ -83,7 +83,7 @@ namespace Kott.Scopes.Testing
 
         /// <summary>
         ///     Sets <paramref name="logger" /> as <see cref="Manager.Logger" /> of injected managers. Without it they get
-        ///     <see cref="ScopeLogging.CreateDefaultLogger" /> with their type name as category.
+        ///     a <see cref="UnityLoggerFactory" /> logger with their type name as category.
         /// </summary>
         public TestInjector SetLogger(ILogger logger)
         {
@@ -112,8 +112,7 @@ namespace Kott.Scopes.Testing
 
             if (target is Manager manager)
             {
-                manager.Logger =
-                    _logger ?? ScopeLogging.CreateDefaultLogger(ScopeLogging.CategoryOf(manager.GetType()));
+                manager.Logger = _logger ?? new UnityLoggerFactory().CreateLogger(manager.GetType());
             }
 
             return target;

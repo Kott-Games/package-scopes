@@ -30,7 +30,7 @@ namespace Kott.Scopes.Tests
         {
             TestLog.Clear();
             _log = new RecordingLogHandler();
-            _system = new ScopeSystem(_routines.Add, rootParent: null, _ => _log.Logger);
+            _system = new ScopeSystem(_routines.Add, rootParent: null, new DelegateLoggerFactory(_ => _log.Logger));
         }
 
         [TearDown]
@@ -773,7 +773,8 @@ namespace Kott.Scopes.Tests
         public void Load_Managers_GetLoggerOfTheirTypeCategory()
         {
             Dictionary<string, ILogger> created = new();
-            _system.LoggerFactory = category => created[category] = new Logger(new RecordingLogHandler());
+            _system.LoggerFactory =
+                new DelegateLoggerFactory(category => created[category] = new Logger(new RecordingLogHandler()));
 
             Scope scope = LoadAndRun(CreateDefinition("S", null, Recording("A"), new PlainManager()));
 
@@ -788,7 +789,8 @@ namespace Kott.Scopes.Tests
         [Test]
         public void Load_FactoryReturnsNullForManager_FailsLoad()
         {
-            _system.LoggerFactory = category => category == ScopeLogging.Category ? _log.Logger : null;
+            _system.LoggerFactory =
+                new DelegateLoggerFactory(category => category == ScopeLogging.Category ? _log.Logger : null);
             _log.Expect(LogType.Error, "returned null for category");
 
             ScopeOperation load = _system.LoadScope(CreateDefinition("S", null, Recording("A")), null, null);
@@ -801,9 +803,10 @@ namespace Kott.Scopes.Tests
         [Test]
         public void LoggerFactory_ReturnsNull_ThrowsAndKeepsPrevious()
         {
-            Func<string, ILogger> previous = _system.LoggerFactory;
+            ILoggerFactory previous = _system.LoggerFactory;
 
-            Assert.Throws<InvalidOperationException>(() => _system.LoggerFactory = _ => null);
+            Assert.Throws<InvalidOperationException>(() =>
+                _system.LoggerFactory = new DelegateLoggerFactory(_ => null));
             Assert.That(_system.LoggerFactory, Is.SameAs(previous));
             Assert.That(_system.Logger, Is.SameAs(_log.Logger));
         }

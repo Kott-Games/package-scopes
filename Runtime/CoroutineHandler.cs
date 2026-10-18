@@ -16,17 +16,6 @@ namespace Kott.Scopes
         private static CoroutineHandler _instance;
 
         private ObjectPool<CoroutineRunner> _pool;
-        private ILogger _logger;
-
-        /// <summary>
-        ///     Receives exceptions of failed routines. Defaults to <see cref="ScopeLogging.CreateDefaultLogger" /> with
-        ///     category <see cref="ScopeLogging.Category" />; independent of <see cref="ScopeHandler.LoggerFactory" />.
-        /// </summary>
-        public ILogger Logger
-        {
-            get => _logger ??= ScopeLogging.CreateDefaultLogger(ScopeLogging.Category);
-            set => _logger = value ?? throw new System.ArgumentNullException(nameof(value));
-        }
 
         /// <summary>The coroutine handler; created on first access.</summary>
         /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
@@ -47,7 +36,7 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                _instance.Logger.Log(LogType.Warning, (object)
+                ScopeLogging.Current.Log(LogType.Warning, (object)
                     $"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
                 Destroy(this);
                 return;
@@ -64,11 +53,14 @@ namespace Kott.Scopes
             }
         }
 
-        /// <summary>Runs <paramref name="routine" />. An exception is logged and ends only this routine.</summary>
+        /// <summary>
+        ///     Runs <paramref name="routine" />. An exception ends only this routine and is logged through the scope
+        ///     system's logger (see <see cref="ScopeHandler.LoggerFactory" />).
+        /// </summary>
         public void Run(IEnumerator routine)
         {
             CoroutineRunner runner = _pool.Get();
-            runner.Run(_pool, routine, Logger);
+            runner.Run(_pool, routine, ScopeLogging.Current);
         }
 
         private void Initialize()

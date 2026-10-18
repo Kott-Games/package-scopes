@@ -48,6 +48,54 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
+        public void UnityLoggerFactory_CreateLogger_WritesWithCategoryPrefix()
+        {
+            _log.Expect(LogType.Warning, @"^\[Game\.Combat\] low health$");
+
+            new UnityLoggerFactory(_log).CreateLogger("Game.Combat").Log(LogType.Warning, "low health");
+        }
+
+        [Test]
+        public void UnityLoggerFactory_CreateLoggerOfType_UsesFullTypeName()
+        {
+            _log.Expect(LogType.Log, $@"^\[{typeof(ScopeLoggingTests).FullName.Replace(".", @"\.")}\] hi$");
+
+            new UnityLoggerFactory(_log).CreateLogger<ScopeLoggingTests>().Log("hi");
+        }
+
+        [Test]
+        public void UnityLoggerFactory_Filters_LongestPrefixWins()
+        {
+            UnityLoggerFactory factory = new UnityLoggerFactory(_log) { DefaultFilter = LogType.Warning }
+                .SetFilter("Game", LogType.Error)
+                .SetFilter("Game.Audio", LogType.Log);
+
+            Assert.That(factory.CreateLogger("Game.Audio.Music").filterLogType, Is.EqualTo(LogType.Log));
+            Assert.That(factory.CreateLogger("Game.Combat").filterLogType, Is.EqualTo(LogType.Error));
+            Assert.That(factory.CreateLogger("Kott.Scopes").filterLogType, Is.EqualTo(LogType.Warning));
+        }
+
+        [Test]
+        public void UnityLoggerFactory_SetFilterTwice_LastOneApplies()
+        {
+            UnityLoggerFactory factory = new UnityLoggerFactory(_log)
+                .SetFilter("Game", LogType.Error)
+                .SetFilter("Game", LogType.Warning);
+
+            Assert.That(factory.CreateLogger("Game.Combat").filterLogType, Is.EqualTo(LogType.Warning));
+        }
+
+        [Test]
+        public void UnityLoggerFactory_FilteredLog_NotWritten()
+        {
+            ILogger logger = new UnityLoggerFactory(_log).SetFilter("Game", LogType.Warning).CreateLogger("Game.X");
+
+            logger.Log(LogType.Log, "hidden");
+
+            _log.AssertNotLogged(LogType.Log, "hidden");
+        }
+
+        [Test]
         public void CategoryLogHandler_EmptyCategory_Throws()
         {
             Assert.Throws<ArgumentException>(() => new CategoryLogHandler("", _log));

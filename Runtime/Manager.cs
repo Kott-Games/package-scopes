@@ -39,8 +39,8 @@ namespace Kott.Scopes
         public Scope Scope { get; internal set; }
 
         /// <summary>
-        ///     Logger of this manager; its category is the manager's full type name (see <see cref="ScopeLogging" />).
-        ///     Set when the scope starts loading, before <see cref="Initialize" />.
+        ///     Logger of this manager, created by <see cref="ScopeHandler.LoggerFactory" /> with the manager's full type
+        ///     name as category. Set when the scope starts loading, before <see cref="Initialize" />.
         /// </summary>
         public ILogger Logger { get; internal set; }
 

@@ -18,7 +18,7 @@ namespace Kott.Scopes
         private readonly Queue<PendingOperation> _queue = new();
         private readonly List<Scope> _scopes = new();
 
-        private Func<string, ILogger> _loggerFactory;
+        private ILoggerFactory _loggerFactory;
         private ILogger _logger;
         private bool _processing;
         private PendingOperation _current;
@@ -26,8 +26,7 @@ namespace Kott.Scopes
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
         /// <param name="loggerFactory">Creates the logger of a category, see <see cref="LoggerFactory" />.</param>
-        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent,
-            Func<string, ILogger> loggerFactory)
+        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent, ILoggerFactory loggerFactory)
         {
             _startRoutine = startRoutine ?? throw new ArgumentNullException(nameof(startRoutine));
             _rootParent = rootParent;
@@ -38,12 +37,12 @@ namespace Kott.Scopes
         ///     Creates the logger of a category: <see cref="ScopeLogging.Category" /> for the system itself, the full
         ///     type name for managers. Applies to the system right away and to managers of scopes loaded afterwards.
         /// </summary>
-        public Func<string, ILogger> LoggerFactory
+        public ILoggerFactory LoggerFactory
         {
             get => _loggerFactory;
             set
             {
-                Func<string, ILogger> previous = _loggerFactory;
+                ILoggerFactory previous = _loggerFactory;
                 _loggerFactory = value ?? throw new ArgumentNullException(nameof(value));
                 try
                 {
@@ -494,7 +493,7 @@ namespace Kott.Scopes
 
         private ILogger CreateLogger(string category)
         {
-            return _loggerFactory(category) ??
+            return _loggerFactory.CreateLogger(category) ??
                    throw new InvalidOperationException($"The logger factory returned null for category '{category}'.");
         }
 

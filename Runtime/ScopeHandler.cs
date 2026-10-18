@@ -47,12 +47,12 @@ namespace Kott.Scopes
         public IReadOnlyList<Scope> Scopes => _system.Scopes;
 
         /// <summary>
-        ///     Creates the logger of a category: <see cref="ScopeLogging.Category" /> for the scope system, the full
-        ///     type name for each manager (<see cref="Manager.Logger" />). Defaults to
-        ///     <see cref="ScopeLogging.CreateDefaultLogger" />. Set it before the first scope loads (e.g. in a
+        ///     Creates the logger of each category: <see cref="ScopeLogging.Category" /> for the scope system (and
+        ///     <see cref="CoroutineHandler" />), the full type name for each manager (<see cref="Manager.Logger" />).
+        ///     Defaults to a <see cref="UnityLoggerFactory" />. Set it before the first scope loads (e.g. in a
         ///     <c>RuntimeInitializeOnLoadMethod</c>): managers of already loaded scopes keep their loggers.
         /// </summary>
-        public Func<string, ILogger> LoggerFactory
+        public ILoggerFactory LoggerFactory
         {
             get => _system.LoggerFactory;
             set => _system.LoggerFactory = value;
@@ -148,7 +148,7 @@ namespace Kott.Scopes
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, ScopeLogging.CreateDefaultLogger);
+            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, new UnityLoggerFactory());
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
