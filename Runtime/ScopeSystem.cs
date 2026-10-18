@@ -18,47 +18,31 @@ namespace Kott.Scopes
         private readonly Queue<PendingOperation> _queue = new();
         private readonly List<Scope> _scopes = new();
 
-        private Func<string, ILogger> _loggerFactory;
-        private ILogger _logger;
+        private readonly TaggedLogger _logger;
+        private ILogger _unityLogger;
         private bool _processing;
         private PendingOperation _current;
 
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
-        /// <param name="loggerFactory">Creates the logger of a category, see <see cref="LoggerFactory" />.</param>
-        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent,
-            Func<string, ILogger> loggerFactory)
+        /// <param name="logger">The logger everything logs through, see <see cref="Logger" />.</param>
+        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent, ILogger logger)
         {
             _startRoutine = startRoutine ?? throw new ArgumentNullException(nameof(startRoutine));
             _rootParent = rootParent;
-            LoggerFactory = loggerFactory;
+            Logger = logger;
+            _logger = CreateTaggedLogger(ScopeLogging.Tag);
         }
 
         /// <summary>
-        ///     Creates the logger of a category: <see cref="ScopeLogging.Category" /> for the system itself, the full
-        ///     type name for managers. Applies to the system right away and to managers of scopes loaded afterwards.
+        ///     The logger the system and all managers log through, tagged with their source. Replacing it takes effect
+        ///     immediately, also for loaded scopes.
         /// </summary>
-        public Func<string, ILogger> LoggerFactory
+        public ILogger Logger
         {
-            get => _loggerFactory;
-            set
-            {
-                Func<string, ILogger> previous = _loggerFactory;
-                _loggerFactory = value ?? throw new ArgumentNullException(nameof(value));
-                try
-                {
-                    _logger = CreateLogger(ScopeLogging.Category);
-                }
-                catch
-                {
-                    _loggerFactory = previous;
-                    throw;
-                }
-            }
+            get => _unityLogger;
+            set => _unityLogger = value ?? throw new ArgumentNullException(nameof(value));
         }
-
-        /// <summary>The system's own logger (category <see cref="ScopeLogging.Category" />).</summary>
-        public ILogger Logger => _logger;
 
         /// <summary>The scope whose scene is activating right now; picked up by <see cref="SceneRoot" />.</summary>
         internal static Scope ActivatingScope { get; private set; }
@@ -260,7 +244,7 @@ namespace Kott.Scopes
                     foreach (Manager manager in scope.Managers)
                     {
                         manager.Scope = scope;
-                        manager.Logger = CreateLogger(ScopeLogging.CategoryOf(manager.GetType()));
+                        manager.Logger = CreateTaggedLogger(ScopeLogging.TagOf(manager.GetType()));
                     }
 
                     scope.RegisterContracts();
@@ -492,10 +476,9 @@ namespace Kott.Scopes
             }
         }
 
-        private ILogger CreateLogger(string category)
+        private TaggedLogger CreateTaggedLogger(string tag)
         {
-            return _loggerFactory(category) ??
-                   throw new InvalidOperationException($"The logger factory returned null for category '{category}'.");
+            return new TaggedLogger(tag, () => _unityLogger);
         }
 
         /// <summary>The subtree of <paramref name="scope" />, children before their parent.</summary>

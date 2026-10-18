@@ -28,7 +28,7 @@ namespace Kott.Scopes
         private bool _disposed;
 
         internal Scope(ScopeDefinition definition, ScopeDefinition instance, Scope parent, GameObject root,
-            ILogger logger)
+            TaggedLogger logger)
         {
             Definition = definition;
             Logger = logger;
@@ -73,8 +73,8 @@ namespace Kott.Scopes
 
         internal ScopeDefinition Instance { get; }
 
-        /// <summary>The scope system's logger (category <see cref="ScopeLogging.Category" />).</summary>
-        internal ILogger Logger { get; }
+        /// <summary>The scope system's logger (tag <see cref="ScopeLogging.Tag" />).</summary>
+        internal TaggedLogger Logger { get; }
 
         internal List<Scope> ChildrenInternal => _children;
         internal ISceneLoader SceneLoader { get; set; }
@@ -358,7 +358,7 @@ namespace Kott.Scopes
                     if (string.IsNullOrEmpty(link.Key))
                     {
                         Logger.Log(LogType.Warning,
-                            (object)$"SceneLink on '{link.name}' in {this} has no key and is ignored.",
+                            $"SceneLink on '{link.name}' in {this} has no key and is ignored.",
                             link);
                         continue;
                     }

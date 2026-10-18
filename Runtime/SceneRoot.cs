@@ -23,18 +23,15 @@ namespace Kott.Scopes
             Scope activating = ScopeSystem.ActivatingScope;
             if (activating == null)
             {
-                ILogger logger = ScopeHandler.HasInstance
-                    ? ScopeHandler.Instance.Logger
-                    : ScopeLogging.CreateDefaultLogger(ScopeLogging.Category);
-                logger.Log(LogType.Warning, (object)(
+                ScopeLogging.Current.Log(LogType.Warning, ScopeLogging.Tag,
                     $"SceneRoot in scene '{gameObject.scene.name}' was not loaded through a scope; nothing is injected " +
-                    "and manager scene callbacks are not invoked."), this);
+                    "and manager scene callbacks are not invoked.", this);
                 return;
             }
 
             if (activating.SceneBound)
             {
-                activating.Logger.Log(LogType.Warning, (object)
+                activating.Logger.Log(LogType.Warning,
                     $"The scene of {activating} has more than one SceneRoot; '{name}' is ignored.", this);
                 return;
             }

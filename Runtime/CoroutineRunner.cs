@@ -9,9 +9,9 @@ namespace Kott.Scopes
     {
         private IObjectPool<CoroutineRunner> _pool;
         private IEnumerator _routine;
-        private ILogger _logger;
+        private TaggedLogger _logger;
 
-        public void Run(IObjectPool<CoroutineRunner> pool, IEnumerator routine, ILogger logger)
+        public void Run(IObjectPool<CoroutineRunner> pool, IEnumerator routine, TaggedLogger logger)
         {
             _pool = pool;
             _logger = logger;

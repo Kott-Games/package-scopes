@@ -47,19 +47,15 @@ namespace Kott.Scopes
         public IReadOnlyList<Scope> Scopes => _system.Scopes;
 
         /// <summary>
-        ///     Creates the logger of a category: <see cref="ScopeLogging.Category" /> for the scope system, the full
-        ///     type name for each manager (<see cref="Manager.Logger" />). Defaults to
-        ///     <see cref="ScopeLogging.CreateDefaultLogger" />. Set it before the first scope loads (e.g. in a
-        ///     <c>RuntimeInitializeOnLoadMethod</c>): managers of already loaded scopes keep their loggers.
+        ///     The logger the scope system, all managers (<see cref="Manager.Logger" />) and
+        ///     <see cref="CoroutineHandler" /> log through, tagged with their source (see <see cref="ScopeLogging" />).
+        ///     Defaults to <see cref="Debug.unityLogger" />; replacing it takes effect immediately.
         /// </summary>
-        public Func<string, ILogger> LoggerFactory
+        public ILogger Logger
         {
-            get => _system.LoggerFactory;
-            set => _system.LoggerFactory = value;
+            get => _system.Logger;
+            set => _system.Logger = value;
         }
-
-        /// <summary>The scope system's logger (category <see cref="ScopeLogging.Category" />).</summary>
-        internal ILogger Logger => _system.Logger;
 
         /// <summary>Invoked when a scope finished loading successfully.</summary>
         public event Action<Scope> ScopeLoaded
@@ -79,7 +75,7 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                _instance.Logger.Log(LogType.Warning, (object)
+                _instance.Logger.Log(LogType.Warning, ScopeLogging.Tag,
                     $"A ScopeHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
                 Destroy(this);
                 return;
@@ -148,7 +144,7 @@ namespace Kott.Scopes
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, ScopeLogging.CreateDefaultLogger);
+            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, Debug.unityLogger);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

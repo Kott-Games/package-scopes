@@ -98,7 +98,7 @@ namespace Kott.Scopes.Tests
         {
             ScopeHandler first = ScopeHandler.Instance;
             WarningRecorder recorder = new();
-            first.LoggerFactory = _ => new Logger(recorder);
+            first.Logger = new Logger(recorder);
 
             GameObject secondObject = new("Second");
             secondObject.AddComponent<ScopeHandler>();
@@ -211,8 +211,9 @@ namespace Kott.Scopes.Tests
         {
             // regression: a throwing routine kept its runner out of the pool forever
             ExceptionRecorder recorder = new();
+            // CoroutineHandler logs through the scope handler's logger
+            ScopeHandler.Instance.Logger = new Logger(recorder);
             CoroutineHandler handler = CoroutineHandler.Instance;
-            handler.Logger = new Logger(recorder);
             bool secondRan = false;
 
             handler.Run(Throwing());

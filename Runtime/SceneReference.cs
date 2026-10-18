@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 
 namespace Kott.Scopes
 {
@@ -20,6 +19,6 @@ namespace Kott.Scopes
 
         /// <summary>Creates the loader for one load of the scene.</summary>
         /// <param name="logger">The scope system's logger, for warnings of the loader.</param>
-        public abstract ISceneLoader CreateLoader(ILogger logger);
+        public abstract ISceneLoader CreateLoader(TaggedLogger logger);
     }
 }

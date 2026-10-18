@@ -50,7 +50,7 @@ namespace Kott.Scopes
         }
 
         /// <inheritdoc />
-        public override ISceneLoader CreateLoader(ILogger logger)
+        public override ISceneLoader CreateLoader(TaggedLogger logger)
         {
             return new AddressableSceneLoader(_scene.RuntimeKey, DisplayName);
         }

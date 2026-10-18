@@ -49,7 +49,7 @@ namespace Kott.Scopes
         public override string DisplayName => Path.GetFileNameWithoutExtension(_scenePath);
 
         /// <inheritdoc />
-        public override ISceneLoader CreateLoader(ILogger logger)
+        public override ISceneLoader CreateLoader(TaggedLogger logger)
         {
             return new BuildSceneLoader(_scenePath, logger);
         }
@@ -58,9 +58,9 @@ namespace Kott.Scopes
     internal sealed class BuildSceneLoader : ISceneLoader
     {
         private readonly string _scenePath;
-        private readonly ILogger _logger;
+        private readonly TaggedLogger _logger;
 
-        public BuildSceneLoader(string scenePath, ILogger logger)
+        public BuildSceneLoader(string scenePath, TaggedLogger logger)
         {
             _scenePath = scenePath;
             _logger = logger;
