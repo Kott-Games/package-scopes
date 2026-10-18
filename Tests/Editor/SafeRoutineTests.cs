@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -18,6 +19,29 @@ namespace Kott.Scopes.Tests
 
             Assert.That(caught, Is.InstanceOf<InvalidOperationException>());
             Assert.That(log, Is.EqualTo(new[] { "outer", "inner", "inner finally", "outer finally" }));
+        }
+
+        [Test]
+        public void Run_CleanupThrowsAfterFailure_ReportsBothAsAggregate()
+        {
+            Exception caught = null;
+
+            Drain(SafeRoutine.Run(ThrowingCleanup(Throwing("inner")), e => caught = e));
+
+            Assert.That(caught, Is.InstanceOf<AggregateException>());
+            Assert.That(((AggregateException)caught).InnerExceptions.Select(e => e.Message),
+                Is.EqualTo(new[] { "inner", "cleanup" }));
+        }
+
+        [Test]
+        public void Run_CleanupThrowsAfterSuccess_ReportsException()
+        {
+            // regression: dispose exceptions went straight to Debug.LogException instead of the caller
+            Exception caught = null;
+
+            Drain(SafeRoutine.Run(ThrowingDispose(), e => caught = e));
+
+            Assert.That(caught?.Message, Is.EqualTo("dispose"));
         }
 
         [Test]
@@ -93,6 +117,47 @@ namespace Kott.Scopes.Tests
         private static IEnumerator NestedYielding(object instruction)
         {
             yield return instruction;
+        }
+
+        private static IEnumerator ThrowingCleanup(IEnumerator nested)
+        {
+            try
+            {
+                yield return nested;
+            }
+            finally
+            {
+                throw new InvalidOperationException("cleanup");
+            }
+        }
+
+        private static IEnumerator Throwing(string message)
+        {
+            yield return null;
+            throw new InvalidOperationException(message);
+        }
+
+        private static IEnumerator ThrowingDispose()
+        {
+            return new DisposeThrowingRoutine();
+        }
+
+        private sealed class DisposeThrowingRoutine : IEnumerator, IDisposable
+        {
+            public object Current => null;
+
+            public bool MoveNext()
+            {
+                return false;
+            }
+
+            public void Reset()
+            { }
+
+            public void Dispose()
+            {
+                throw new InvalidOperationException("dispose");
+            }
         }
 
         private static void Drain(IEnumerator routine)

@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Kott.Utilities.Progress;
 using NUnit.Framework;
 using UnityEngine;
@@ -98,7 +97,8 @@ namespace Kott.Scopes.Tests
         public IEnumerator Awake_SecondHost_RemovesItself()
         {
             ScopeHandler first = ScopeHandler.Instance;
-            LogAssert.Expect(LogType.Warning, new Regex("A ScopeHandler already exists"));
+            WarningRecorder recorder = new();
+            first.LoggerFactory = new RecordingLoggerFactory(recorder);
 
             GameObject secondObject = new("Second");
             secondObject.AddComponent<ScopeHandler>();
@@ -106,6 +106,8 @@ namespace Kott.Scopes.Tests
 
             Assert.That(ScopeHandler.Instance, Is.SameAs(first));
             Assert.That(secondObject.GetComponent<ScopeHandler>() == null, Is.True);
+            Assert.That(recorder.Warnings, Has.Count.EqualTo(1));
+            Assert.That(recorder.Warnings[0], Does.Contain("A ScopeHandler already exists"));
             Object.Destroy(secondObject);
         }
 
@@ -209,8 +211,9 @@ namespace Kott.Scopes.Tests
         {
             // regression: a throwing routine kept its runner out of the pool forever
             ExceptionRecorder recorder = new();
+            // CoroutineHandler logs through the scope system's logger
+            ScopeHandler.Instance.LoggerFactory = new RecordingLoggerFactory(recorder);
             CoroutineHandler handler = CoroutineHandler.Instance;
-            handler.Logger = new Logger(recorder);
             bool secondRan = false;
 
             handler.Run(Throwing());
@@ -251,6 +254,43 @@ namespace Kott.Scopes.Tests
             public void LogException(Exception exception, Object context)
             {
                 Exceptions.Add(exception);
+            }
+        }
+
+        private sealed class RecordingLoggerFactory : ILoggerFactory
+        {
+            private readonly ILogHandler _handler;
+
+            public RecordingLoggerFactory(ILogHandler handler)
+            {
+                _handler = handler;
+            }
+
+            public ILogger CreateLogger(string category)
+            {
+                return new Logger(_handler);
+            }
+        }
+
+        private sealed class WarningRecorder : ILogHandler
+        {
+            public readonly List<string> Warnings = new();
+
+            public void LogFormat(LogType logType, Object context, string format, params object[] args)
+            {
+                if (logType == LogType.Warning)
+                {
+                    Warnings.Add(string.Format(format, args));
+                }
+                else
+                {
+                    Debug.unityLogger.logHandler.LogFormat(logType, context, format, args);
+                }
+            }
+
+            public void LogException(Exception exception, Object context)
+            {
+                Debug.unityLogger.logHandler.LogException(exception, context);
             }
         }
 

@@ -49,19 +49,21 @@ namespace Kott.Scopes
         public override string DisplayName => Path.GetFileNameWithoutExtension(_scenePath);
 
         /// <inheritdoc />
-        public override ISceneLoader CreateLoader()
+        public override ISceneLoader CreateLoader(ILogger logger)
         {
-            return new BuildSceneLoader(_scenePath);
+            return new BuildSceneLoader(_scenePath, logger);
         }
     }
 
     internal sealed class BuildSceneLoader : ISceneLoader
     {
         private readonly string _scenePath;
+        private readonly ILogger _logger;
 
-        public BuildSceneLoader(string scenePath)
+        public BuildSceneLoader(string scenePath, ILogger logger)
         {
             _scenePath = scenePath;
+            _logger = logger;
         }
 
         public Scene Scene { get; private set; }
@@ -77,7 +79,7 @@ namespace Kott.Scopes
             {
 #if UNITY_EDITOR
                 // keeps iterating in the editor possible; scope validation still reports it as an error
-                Debug.LogWarning(
+                _logger.Log(LogType.Warning,
                     $"Scene '{_scenePath}' is not in the scene list of the build profile. It loads in the editor, " +
                     "but a build will fail to load it. Add it there, or reference it through Addressables instead.");
                 operation = UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(_scenePath,

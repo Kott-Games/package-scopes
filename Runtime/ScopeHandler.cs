@@ -46,6 +46,21 @@ namespace Kott.Scopes
         /// <summary>All scopes in the tree, including ones still loading or unloading.</summary>
         public IReadOnlyList<Scope> Scopes => _system.Scopes;
 
+        /// <summary>
+        ///     Creates the logger of each category: <see cref="ScopeLogging.Category" /> for the scope system (and
+        ///     <see cref="CoroutineHandler" />), the full type name for each manager (<see cref="Manager.Logger" />).
+        ///     Defaults to a <see cref="UnityLoggerFactory" />. Set it before the first scope loads (e.g. in a
+        ///     <c>RuntimeInitializeOnLoadMethod</c>): managers of already loaded scopes keep their loggers.
+        /// </summary>
+        public ILoggerFactory LoggerFactory
+        {
+            get => _system.LoggerFactory;
+            set => _system.LoggerFactory = value;
+        }
+
+        /// <summary>The scope system's logger (category <see cref="ScopeLogging.Category" />).</summary>
+        internal ILogger Logger => _system.Logger;
+
         /// <summary>Invoked when a scope finished loading successfully.</summary>
         public event Action<Scope> ScopeLoaded
         {
@@ -64,8 +79,8 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning($"A ScopeHandler already exists on '{_instance.name}'; removing the one on '{name}'.",
-                    this);
+                _instance.Logger.Log(LogType.Warning, (object)
+                    $"A ScopeHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
                 Destroy(this);
                 return;
             }
@@ -133,7 +148,7 @@ namespace Kott.Scopes
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, Debug.unityLogger);
+            _system = new ScopeSystem(routine => StartCoroutine(routine), transform, new UnityLoggerFactory());
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

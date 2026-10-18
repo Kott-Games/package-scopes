@@ -27,10 +27,12 @@ namespace Kott.Scopes
     /// </example>
     public sealed class ScopeOperation : CustomYieldInstruction
     {
+        private readonly ILogger _logger;
         private Action<ScopeOperation> _completed;
 
-        internal ScopeOperation(ScopeOperationType type, ScopeDefinition definition, Scope scope)
+        internal ScopeOperation(ScopeOperationType type, ScopeDefinition definition, Scope scope, ILogger logger)
         {
+            _logger = logger;
             Type = type;
             Definition = definition;
             Scope = scope;
@@ -105,7 +107,7 @@ namespace Kott.Scopes
                 }
                 catch (Exception handlerException)
                 {
-                    Debug.LogException(handlerException);
+                    _logger.LogException(handlerException);
                 }
             }
         }

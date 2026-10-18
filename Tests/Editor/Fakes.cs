@@ -208,7 +208,7 @@ namespace Kott.Scopes.Tests
         public override bool IsAssigned => true;
         public override string DisplayName => Name;
 
-        public override ISceneLoader CreateLoader()
+        public override ISceneLoader CreateLoader(ILogger logger)
         {
             return new FakeSceneLoader(Name, FailLoad);
         }
@@ -263,6 +263,21 @@ namespace Kott.Scopes.Tests
     ///     Records log output instead of printing it, so expected failures don't show up as console errors.
     ///     Expectations are checked by <see cref="Verify" />, which also fails on unexpected errors.
     /// </summary>
+    internal sealed class DelegateLoggerFactory : ILoggerFactory
+    {
+        private readonly Func<string, ILogger> _create;
+
+        public DelegateLoggerFactory(Func<string, ILogger> create)
+        {
+            _create = create;
+        }
+
+        public ILogger CreateLogger(string category)
+        {
+            return _create(category);
+        }
+    }
+
     internal sealed class RecordingLogHandler : ILogHandler
     {
         private readonly List<(LogType Type, string Message)> _entries = new();

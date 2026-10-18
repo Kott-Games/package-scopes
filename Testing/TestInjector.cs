@@ -23,6 +23,7 @@ namespace Kott.Scopes.Testing
     {
         private readonly Dictionary<Type, object> _contracts = new();
         private readonly Dictionary<string, GameObject> _sceneObjects = new();
+        private ILogger _logger;
 
         private TestInjector()
         { }
@@ -80,7 +81,20 @@ namespace Kott.Scopes.Testing
             return this;
         }
 
-        /// <summary>Fills the injected fields of <paramref name="target" /> and returns it.</summary>
+        /// <summary>
+        ///     Sets <paramref name="logger" /> as <see cref="Manager.Logger" /> of injected managers. Without it they get
+        ///     a <see cref="UnityLoggerFactory" /> logger with their type name as category.
+        /// </summary>
+        public TestInjector SetLogger(ILogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            return this;
+        }
+
+        /// <summary>
+        ///     Fills the injected fields of <paramref name="target" /> (and <see cref="Manager.Logger" /> of a manager)
+        ///     and returns it.
+        /// </summary>
         /// <exception cref="InvalidOperationException">A required contract or scene object is missing, or a field type is invalid.</exception>
         public T Inject<T>(T target)
             where T : class
@@ -95,6 +109,12 @@ namespace Kott.Scopes.Testing
             Injector.InjectScene(target, key => _sceneObjects.TryGetValue(key, out GameObject sceneObject)
                 ? sceneObject
                 : null, "the TestInjector");
+
+            if (target is Manager manager)
+            {
+                manager.Logger = _logger ?? new UnityLoggerFactory().CreateLogger(manager.GetType());
+            }
+
             return target;
         }
     }
