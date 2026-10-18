@@ -30,7 +30,7 @@ namespace Kott.Scopes.Tests
         {
             TestLog.Clear();
             _log = new RecordingLogHandler();
-            _system = new ScopeSystem(_routines.Add, rootParent: null, _log.Logger);
+            _system = new ScopeSystem(_routines.Add, rootParent: null, _ => _log.Logger);
         }
 
         [TearDown]
@@ -755,6 +755,57 @@ namespace Kott.Scopes.Tests
 
             Assert.That(invoked, Is.True);
             Assert.That(load.keepWaiting, Is.False);
+        }
+
+        [Test]
+        public void Operation_CompletedHandlerThrows_LoggedThroughSystemLogger()
+        {
+            _log.Expect(LogType.Exception, "handler");
+            ScopeOperation load = _system.LoadScope(CreateDefinition("S", null), null, null);
+            load.Completed += _ => throw new InvalidOperationException("handler");
+
+            RunAll();
+
+            Assert.That(load.Succeeded, Is.True);
+        }
+
+        [Test]
+        public void Load_Managers_GetLoggerOfTheirTypeCategory()
+        {
+            Dictionary<string, ILogger> created = new();
+            _system.LoggerFactory = category => created[category] = new Logger(new RecordingLogHandler());
+
+            Scope scope = LoadAndRun(CreateDefinition("S", null, Recording("A"), new PlainManager()));
+
+            Assert.That(created.Keys, Is.EquivalentTo(new[]
+            {
+                ScopeLogging.Category, typeof(RecordingManager).FullName, typeof(PlainManager).FullName,
+            }));
+            Assert.That(scope.Managers[0].Logger, Is.SameAs(created[typeof(RecordingManager).FullName]));
+            Assert.That(scope.Managers[1].Logger, Is.SameAs(created[typeof(PlainManager).FullName]));
+        }
+
+        [Test]
+        public void Load_FactoryReturnsNullForManager_FailsLoad()
+        {
+            _system.LoggerFactory = category => category == ScopeLogging.Category ? _log.Logger : null;
+            _log.Expect(LogType.Error, "returned null for category");
+
+            ScopeOperation load = _system.LoadScope(CreateDefinition("S", null, Recording("A")), null, null);
+            RunAll();
+
+            Assert.That(load.Exception, Is.InstanceOf<InvalidOperationException>());
+            Assert.That(TestLog.Entries, Does.Not.Contain("A.Initialize"));
+        }
+
+        [Test]
+        public void LoggerFactory_ReturnsNull_ThrowsAndKeepsPrevious()
+        {
+            Func<string, ILogger> previous = _system.LoggerFactory;
+
+            Assert.Throws<InvalidOperationException>(() => _system.LoggerFactory = _ => null);
+            Assert.That(_system.LoggerFactory, Is.SameAs(previous));
+            Assert.That(_system.Logger, Is.SameAs(_log.Logger));
         }
 
         [Test]

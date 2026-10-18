@@ -27,9 +27,11 @@ namespace Kott.Scopes
         private List<Manager> _managers;
         private bool _disposed;
 
-        internal Scope(ScopeDefinition definition, ScopeDefinition instance, Scope parent, GameObject root)
+        internal Scope(ScopeDefinition definition, ScopeDefinition instance, Scope parent, GameObject root,
+            ILogger logger)
         {
             Definition = definition;
+            Logger = logger;
             Instance = instance;
             Parent = parent;
             Root = root;
@@ -70,6 +72,10 @@ namespace Kott.Scopes
         public ScopeState State { get; internal set; }
 
         internal ScopeDefinition Instance { get; }
+
+        /// <summary>The scope system's logger (category <see cref="ScopeLogging.Category" />).</summary>
+        internal ILogger Logger { get; }
+
         internal List<Scope> ChildrenInternal => _children;
         internal ISceneLoader SceneLoader { get; set; }
         internal bool SceneLoaded { get; set; }
@@ -351,7 +357,9 @@ namespace Kott.Scopes
                 {
                     if (string.IsNullOrEmpty(link.Key))
                     {
-                        Debug.LogWarning($"SceneLink on '{link.name}' in {this} has no key and is ignored.", link);
+                        Logger.Log(LogType.Warning,
+                            (object)$"SceneLink on '{link.name}' in {this} has no key and is ignored.",
+                            link);
                         continue;
                     }
 
@@ -366,7 +374,8 @@ namespace Kott.Scopes
             }
 
             List<string> problems = new();
-            Func<string, GameObject> findLink = key => TryGetSceneGameObject(key, out GameObject linked) ? linked : null;
+            Func<string, GameObject> findLink = key =>
+                TryGetSceneGameObject(key, out GameObject linked) ? linked : null;
             foreach (Manager manager in _managers)
             {
                 try
@@ -476,7 +485,7 @@ namespace Kott.Scopes
                 }
                 catch (Exception exception)
                 {
-                    Debug.LogException(exception);
+                    Logger.LogException(exception);
                 }
             }
         }

@@ -16,9 +16,17 @@ namespace Kott.Scopes
         private static CoroutineHandler _instance;
 
         private ObjectPool<CoroutineRunner> _pool;
+        private ILogger _logger;
 
-        /// <summary>Receives exceptions of failed routines. Replaceable for tests.</summary>
-        internal ILogger Logger { get; set; } = Debug.unityLogger;
+        /// <summary>
+        ///     Receives exceptions of failed routines. Defaults to <see cref="ScopeLogging.CreateDefaultLogger" /> with
+        ///     category <see cref="ScopeLogging.Category" />; independent of <see cref="ScopeHandler.LoggerFactory" />.
+        /// </summary>
+        public ILogger Logger
+        {
+            get => _logger ??= ScopeLogging.CreateDefaultLogger(ScopeLogging.Category);
+            set => _logger = value ?? throw new System.ArgumentNullException(nameof(value));
+        }
 
         /// <summary>The coroutine handler; created on first access.</summary>
         /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
@@ -39,7 +47,7 @@ namespace Kott.Scopes
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning(
+                _instance.Logger.Log(LogType.Warning, (object)
                     $"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
                 Destroy(this);
                 return;

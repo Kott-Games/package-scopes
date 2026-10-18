@@ -12,7 +12,8 @@ namespace Kott.Scopes
     ///     their <c>finally</c> blocks never run. This runner steps nested enumerators itself, so an exception
     ///     is reported through a callback and the caller continues. Other yield values (<c>null</c>,
     ///     <see cref="UnityEngine.YieldInstruction" />s, <see cref="UnityEngine.Coroutine" />s) are passed
-    ///     through to Unity.
+    ///     through to Unity. An exception thrown while disposing a nested routine (its <c>finally</c> blocks) fails
+    ///     the routine as well; several exceptions are reported as one <see cref="AggregateException" />.
     /// </remarks>
     internal static class SafeRoutine
     {
@@ -71,7 +72,7 @@ namespace Kott.Scopes
                 if (!moved)
                 {
                     stack.Pop();
-                    DisposeQuietly(current);
+                    failure = Dispose(current);
                     continue;
                 }
 
@@ -89,23 +90,32 @@ namespace Kott.Scopes
                 yield break;
             }
 
+            List<Exception> failures = null;
             while (stack.Count > 0)
             {
-                DisposeQuietly(stack.Pop());
+                Exception disposeFailure = Dispose(stack.Pop());
+                if (disposeFailure != null)
+                {
+                    failures ??= new List<Exception> { failure };
+                    failures.Add(disposeFailure);
+                }
             }
 
-            onException?.Invoke(failure);
+            onException?.Invoke(failures == null
+                ? failure
+                : new AggregateException("A routine threw, and so did its cleanup.", failures));
         }
 
-        private static void DisposeQuietly(IEnumerator enumerator)
+        private static Exception Dispose(IEnumerator enumerator)
         {
             try
             {
                 (enumerator as IDisposable)?.Dispose();
+                return null;
             }
             catch (Exception exception)
             {
-                UnityEngine.Debug.LogException(exception);
+                return exception;
             }
         }
     }

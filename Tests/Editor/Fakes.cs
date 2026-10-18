@@ -208,7 +208,7 @@ namespace Kott.Scopes.Tests
         public override bool IsAssigned => true;
         public override string DisplayName => Name;
 
-        public override ISceneLoader CreateLoader()
+        public override ISceneLoader CreateLoader(ILogger logger)
         {
             return new FakeSceneLoader(Name, FailLoad);
         }

@@ -37,6 +37,24 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
+        public void Inject_Manager_SetsLogger()
+        {
+            ILogger logger = new Logger(new RecordingLogHandler());
+
+            PlainManager manager = TestInjector.Create().SetLogger(logger).Inject(new PlainManager());
+
+            Assert.That(manager.Logger, Is.SameAs(logger));
+        }
+
+        [Test]
+        public void Inject_ManagerWithoutSetLogger_GetsDefaultLogger()
+        {
+            PlainManager manager = TestInjector.Create().Inject(new PlainManager());
+
+            Assert.That(manager.Logger, Is.Not.Null);
+        }
+
+        [Test]
         public void Inject_OptionalContractMissing_LeavesNull()
         {
             OptionalFooConsumer target = TestInjector.Create().Inject(new OptionalFooConsumer());

@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scene components get their `[Inject]` fields filled before their `Awake`. `Scope.Inject(object)` and
   `Scope.Instantiate(prefab, parent)` inject objects created at runtime (instantiated copies are
   injected before `Awake`). `Scope.Resolve<T>()`/`TryResolve<T>()` for code outside the scope tree.
+- Logging through `UnityEngine.ILogger` per category: each manager gets `Manager.Logger` (category = its
+  full type name, set before `Initialize`); the scope system logs as `Kott.Scopes`. `ScopeHandler.LoggerFactory`
+  creates the loggers, so log levels can be filtered per source; the default
+  (`ScopeLogging.CreateDefaultLogger`) writes `[category] message` to `Debug.unityLogger`. No package code
+  logs through `Debug` directly. `CoroutineHandler.Logger` is settable, `TestInjector.SetLogger` for tests.
 - `Kott.Scopes.Testing` assembly with `TestInjector` to fill `[Inject]`/`[InjectScene]` fields with fakes.
 - Scene loading abstraction: `SceneReference` / `ISceneLoader` with `BuildSceneReference` (build profile
   scene list) and `AddressableSceneReference` (separate assembly, enabled when Addressables is installed).

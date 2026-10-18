@@ -14,23 +14,51 @@ namespace Kott.Scopes
     internal sealed class ScopeSystem
     {
         private readonly Action<IEnumerator> _startRoutine;
-        private readonly ILogger _logger;
         private readonly Transform _rootParent;
         private readonly Queue<PendingOperation> _queue = new();
         private readonly List<Scope> _scopes = new();
 
+        private Func<string, ILogger> _loggerFactory;
+        private ILogger _logger;
         private bool _processing;
         private PendingOperation _current;
 
         /// <param name="startRoutine">Runs the processing coroutine (e.g. <c>MonoBehaviour.StartCoroutine</c>).</param>
         /// <param name="rootParent">Parent transform for the root scope's root object; may be <c>null</c>.</param>
-        /// <param name="logger">Receives failures and cleanup errors (<see cref="Debug.unityLogger" /> at runtime).</param>
-        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent, ILogger logger)
+        /// <param name="loggerFactory">Creates the logger of a category, see <see cref="LoggerFactory" />.</param>
+        public ScopeSystem(Action<IEnumerator> startRoutine, Transform rootParent,
+            Func<string, ILogger> loggerFactory)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _startRoutine = startRoutine ?? throw new ArgumentNullException(nameof(startRoutine));
             _rootParent = rootParent;
+            LoggerFactory = loggerFactory;
         }
+
+        /// <summary>
+        ///     Creates the logger of a category: <see cref="ScopeLogging.Category" /> for the system itself, the full
+        ///     type name for managers. Applies to the system right away and to managers of scopes loaded afterwards.
+        /// </summary>
+        public Func<string, ILogger> LoggerFactory
+        {
+            get => _loggerFactory;
+            set
+            {
+                Func<string, ILogger> previous = _loggerFactory;
+                _loggerFactory = value ?? throw new ArgumentNullException(nameof(value));
+                try
+                {
+                    _logger = CreateLogger(ScopeLogging.Category);
+                }
+                catch
+                {
+                    _loggerFactory = previous;
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>The system's own logger (category <see cref="ScopeLogging.Category" />).</summary>
+        public ILogger Logger => _logger;
 
         /// <summary>The scope whose scene is activating right now; picked up by <see cref="SceneRoot" />.</summary>
         internal static Scope ActivatingScope { get; private set; }
@@ -50,7 +78,7 @@ namespace Kott.Scopes
                 throw new ArgumentNullException(nameof(definition));
             }
 
-            ScopeOperation operation = new(ScopeOperationType.Load, definition, scope: null);
+            ScopeOperation operation = new(ScopeOperationType.Load, definition, scope: null, _logger);
             Enqueue(new PendingOperation(operation, parent, progress));
             return operation;
         }
@@ -62,7 +90,7 @@ namespace Kott.Scopes
                 throw new ArgumentNullException(nameof(scope));
             }
 
-            ScopeOperation operation = new(ScopeOperationType.Unload, scope.Definition, scope);
+            ScopeOperation operation = new(ScopeOperationType.Unload, scope.Definition, scope, _logger);
             Enqueue(new PendingOperation(operation, parent: null, progress));
             return operation;
         }
@@ -184,7 +212,7 @@ namespace Kott.Scopes
 
             if (definition.DeclaredParent != null && (parent == null || parent.Definition != definition.DeclaredParent))
             {
-                _logger.LogWarning("Scopes",
+                _logger.Log(LogType.Warning,
                     $"Scope '{definition.name}' declares parent '{definition.DeclaredParent.name}' but is loaded " +
                     (parent != null ? $"under {parent}." : "as the root scope."));
             }
@@ -200,7 +228,7 @@ namespace Kott.Scopes
                 root.transform.SetParent(rootParent, worldPositionStays: false);
             }
 
-            Scope scope = new(definition, instance, parent, root) { State = ScopeState.Loading };
+            Scope scope = new(definition, instance, parent, root, _logger) { State = ScopeState.Loading };
             operation.Scope = scope;
             _scopes.Add(scope);
             RootScope ??= scope;
@@ -232,6 +260,7 @@ namespace Kott.Scopes
                     foreach (Manager manager in scope.Managers)
                     {
                         manager.Scope = scope;
+                        manager.Logger = CreateLogger(ScopeLogging.CategoryOf(manager.GetType()));
                     }
 
                     scope.RegisterContracts();
@@ -279,7 +308,7 @@ namespace Kott.Scopes
 
                 try
                 {
-                    scope.SceneLoader = sceneReference.CreateLoader();
+                    scope.SceneLoader = sceneReference.CreateLoader(_logger);
                 }
                 catch (Exception exception)
                 {
@@ -445,7 +474,7 @@ namespace Kott.Scopes
 
         private void Fail(ScopeOperation operation, Exception exception)
         {
-            _logger.LogError("Scopes",
+            _logger.Log(LogType.Error,
                 $"{operation.Type} of scope '{(operation.Definition != null ? operation.Definition.name : "?")}' " +
                 $"failed: {exception}");
             operation.Complete(exception);
@@ -461,6 +490,12 @@ namespace Kott.Scopes
             {
                 _logger.LogException(exception);
             }
+        }
+
+        private ILogger CreateLogger(string category)
+        {
+            return _loggerFactory(category) ??
+                   throw new InvalidOperationException($"The logger factory returned null for category '{category}'.");
         }
 
         /// <summary>The subtree of <paramref name="scope" />, children before their parent.</summary>

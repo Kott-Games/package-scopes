@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Kott.Utilities.Progress;
+using UnityEngine;
 
 namespace Kott.Scopes
 {
@@ -36,6 +37,12 @@ namespace Kott.Scopes
     {
         /// <summary>The loaded scope this manager belongs to. Set before <see cref="Initialize" />.</summary>
         public Scope Scope { get; internal set; }
+
+        /// <summary>
+        ///     Logger of this manager; its category is the manager's full type name (see <see cref="ScopeLogging" />).
+        ///     Set when the scope starts loading, before <see cref="Initialize" />.
+        /// </summary>
+        public ILogger Logger { get; internal set; }
 
         /// <summary>
         ///     Initialization before the scope's scene is loaded. May span multiple frames. Injected managers are
