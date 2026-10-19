@@ -40,7 +40,7 @@ jobs:
           manifest='TestProject~/Packages/manifest.json'
           jq '.dependencies["com.unity.addressables"] = "2.9.1"' "$manifest" > manifest.tmp && mv manifest.tmp "$manifest"
 
-      - uses: game-ci/unity-test-runner@v4
+      - uses: game-ci/unity-test-runner@v4.3.2
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
