@@ -9,8 +9,12 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-[*.{json,asmdef,asmref,inputactions,yml,yaml}]
+[*.{json,inputactions,yml,yaml}]
 indent_size = 2
+
+# Unity writes these with 4
+[*.{asmdef,asmref}]
+indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false

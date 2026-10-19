@@ -16,12 +16,6 @@ namespace Kott.Scopes.Demo
         public string DisplayName => "Broken";
 
         /// <inheritdoc />
-        public bool IsFinished => false;
-
-        /// <inheritdoc />
-        public int Score => 0;
-
-        /// <inheritdoc />
         public override IEnumerator Initialize(IProgress<ProgressReport> progress)
         {
             yield return null;

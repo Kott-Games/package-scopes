@@ -15,12 +15,6 @@ namespace Kott.Scopes.Demo
 
         /// <summary>Best score per mini game.</summary>
         public List<BestScore> BestScores = new();
-
-        /// <summary>The best score of <paramref name="miniGame" />, or <c>null</c> if it was never played.</summary>
-        public int? GetBestScore(string miniGame)
-        {
-            return BestScores.Find(score => score.MiniGame == miniGame)?.Score;
-        }
     }
 
     /// <summary>Best score of one mini game.</summary>

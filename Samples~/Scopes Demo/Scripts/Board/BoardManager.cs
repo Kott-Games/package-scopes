@@ -14,7 +14,7 @@ namespace Kott.Scopes.Demo
     [Serializable]
     public sealed class BoardManager : Manager
     {
-        private static readonly Vector3 CameraOffset = new(0f, 9f, -8.5f);
+        private static readonly Vector3 _cameraOffset = new(0f, 9f, -8.5f);
 
         [SerializeField]
         private PlayerToken _tokenPrefab;
@@ -242,7 +242,7 @@ namespace Kott.Scopes.Demo
                 focus = Vector3.Lerp(Vector3.zero, _tokens[_session.CurrentPlayerIndex].transform.position, 0.35f);
             }
 
-            return focus + CameraOffset;
+            return focus + _cameraOffset;
         }
     }
 }

@@ -31,14 +31,10 @@ namespace Kott.Scopes.Demo
         [InjectScene("ui")]
         private Transform _ui;
 
+        private bool _finished;
+
         /// <inheritdoc />
         public abstract string DisplayName { get; }
-
-        /// <inheritdoc />
-        public bool IsFinished { get; private set; }
-
-        /// <inheritdoc />
-        public int Score { get; private set; }
 
         /// <summary>One line explaining the controls.</summary>
         protected abstract string Instructions { get; }
@@ -63,7 +59,7 @@ namespace Kott.Scopes.Demo
         public override void Update()
         {
             // the Pause scope sets the time scale to 0, but key presses still arrive
-            if (IsFinished || _flow.IsPaused)
+            if (_finished || _flow.IsPaused)
             {
                 return;
             }
@@ -92,8 +88,7 @@ namespace Kott.Scopes.Demo
         /// <summary>Reports the result to the session and the profile, then returns to the board.</summary>
         protected void Finish(int score, int coins, string summary)
         {
-            IsFinished = true;
-            Score = score;
+            _finished = true;
             bool best = _save.SubmitScore(DisplayName, score);
             if (_session.AwaitsMiniGame)
             {
@@ -107,7 +102,7 @@ namespace Kott.Scopes.Demo
 
         private void HandleAction()
         {
-            if (!IsFinished && !_flow.IsPaused)
+            if (!_finished && !_flow.IsPaused)
             {
                 OnAction();
             }

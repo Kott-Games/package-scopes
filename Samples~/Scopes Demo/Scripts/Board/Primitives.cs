@@ -5,8 +5,8 @@ namespace Kott.Scopes.Demo
     /// <summary>Creates the demo's primitive visuals in code, so the scenes need no materials or meshes.</summary>
     public static class Primitives
     {
-        private static readonly int ColorId = Shader.PropertyToID("_Color");
-        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int _colorId = Shader.PropertyToID("_Color");
+        private static readonly int _baseColorId = Shader.PropertyToID("_BaseColor");
         private static MaterialPropertyBlock _block;
 
         /// <summary>
@@ -33,8 +33,8 @@ namespace Kott.Scopes.Demo
         {
             _block ??= new MaterialPropertyBlock();
             renderer.GetPropertyBlock(_block);
-            _block.SetColor(ColorId, color); // Built-in
-            _block.SetColor(BaseColorId, color); // URP
+            _block.SetColor(_colorId, color); // Built-in
+            _block.SetColor(_baseColorId, color); // URP
             renderer.SetPropertyBlock(_block);
         }
     }

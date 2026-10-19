@@ -186,15 +186,6 @@ namespace Kott.Scopes.Demo
             rect.offsetMax = Vector2.zero;
         }
 
-        /// <summary>Destroys <paramref name="target" /> if it still exists.</summary>
-        public static void Destroy(Component target)
-        {
-            if (target != null)
-            {
-                Object.Destroy(target.gameObject);
-            }
-        }
-
         private static RectTransform CreateRect(string name, Transform parent)
         {
             GameObject gameObject = new(name, typeof(RectTransform));
