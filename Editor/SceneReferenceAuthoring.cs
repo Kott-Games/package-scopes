@@ -111,7 +111,7 @@ namespace Kott.Scopes
             if (buildReference.ScenePath != scenePath)
             {
                 return $"The scene was moved to '{scenePath}', but the scope still loads it from " +
-                       $"'{buildReference.ScenePath}'. Select the scope in the inspector to update the reference.";
+                       $"'{buildReference.ScenePath}'. Press Register (or select the scope in the inspector) to update the reference.";
             }
 
             foreach (EditorBuildSettingsScene buildScene in EditorBuildSettings.scenes)

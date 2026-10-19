@@ -13,7 +13,7 @@ namespace Kott.Scopes.Demo
     [Serializable]
     public sealed class GameSession : Manager, IGameSession
     {
-        private static readonly Color[] PlayerColors =
+        private static readonly Color[] _playerColors =
         {
             new(0.95f, 0.35f, 0.3f), new(0.3f, 0.6f, 1f), new(0.35f, 0.85f, 0.4f), new(1f, 0.8f, 0.25f),
         };
@@ -76,7 +76,7 @@ namespace Kott.Scopes.Demo
             _players.Clear();
             for (int i = 0; i < _playerCount; i++)
             {
-                _players.Add(new PlayerState($"Player {i + 1}", PlayerColors[i % PlayerColors.Length]));
+                _players.Add(new PlayerState($"Player {i + 1}", _playerColors[i % _playerColors.Length]));
             }
 
             // uses IDice while initializing: only works because Dice is initialized first
@@ -149,7 +149,7 @@ namespace Kott.Scopes.Demo
             }
 
             player.Coins += coins;
-            MoveResult result = new(CurrentPlayerIndex, roll, from, to, tile, coins);
+            MoveResult result = new(CurrentPlayerIndex, roll, from, tile, coins);
 
             if (tile == TileKind.MiniGame)
             {

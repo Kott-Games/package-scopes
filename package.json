@@ -3,10 +3,14 @@
   "displayName": "Kott Scopes",
   "unity": "6000.0",
   "keywords": [
-    "core"
+    "scopes",
+    "dependency injection",
+    "game state",
+    "scene management",
+    "lifecycle"
   ],
   "version": "1.0.0",
-  "description": "Hierarchical game-state management for Unity. A scope bundles managers and an optional scene: managers initialize before the scene activates, expose singleton contracts to child scopes, and unload depth-first.",
+  "description": "Hierarchical game-state management with scoped dependency injection for Unity. A scope bundles plain C# managers and an optional scene: managers get their contracts injected from the scope tree, initialize in dependency order before the scene activates, and unload depth-first.",
   "author": {
     "name": "Paul Kloetzing",
     "email": "kloetzing.paul@gmail.com"

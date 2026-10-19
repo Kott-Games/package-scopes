@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Pool;
 
 namespace Kott.Scopes
 {
@@ -14,8 +13,6 @@ namespace Kott.Scopes
     public sealed class CoroutineHandler : MonoBehaviour
     {
         private static CoroutineHandler _instance;
-
-        private ObjectPool<CoroutineRunner> _pool;
 
         /// <summary>The coroutine handler; created on first access.</summary>
         /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
@@ -54,45 +51,23 @@ namespace Kott.Scopes
         }
 
         /// <summary>
-        ///     Runs <paramref name="routine" />. An exception ends only this routine and is logged through the scope
-        ///     system's logger (see <see cref="ScopeHandler.LoggerFactory" />).
+        ///     Runs <paramref name="routine" />; stop it with <c>StopCoroutine</c>. An exception ends only this routine
+        ///     and is logged through the scope system's logger (see <see cref="ScopeHandler.LoggerFactory" />).
         /// </summary>
-        public void Run(IEnumerator routine)
+        public Coroutine Run(IEnumerator routine)
         {
-            CoroutineRunner runner = _pool.Get();
-            runner.Run(_pool, routine, ScopeLogging.Current);
+            return StartCoroutine(SafeRoutine.Run(routine, ScopeLogging.Current.LogException));
         }
 
         private void Initialize()
         {
-            if (_pool != null)
+            if (_instance == this)
             {
                 return;
             }
 
             _instance = this;
             DontDestroyOnLoad(transform.root.gameObject);
-            _pool = new ObjectPool<CoroutineRunner>(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
-        }
-
-        private CoroutineRunner PoolCreate()
-        {
-            return gameObject.AddComponent<CoroutineRunner>();
-        }
-
-        private static void PoolGet(CoroutineRunner runner)
-        {
-            runner.enabled = true;
-        }
-
-        private static void PoolRelease(CoroutineRunner runner)
-        {
-            runner.enabled = false;
-        }
-
-        private static void PoolDestroy(CoroutineRunner runner)
-        {
-            Destroy(runner);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

@@ -98,5 +98,15 @@ namespace Kott.Scopes.Tests
                 Object.DestroyImmediate(spawn);
             }
         }
+
+        [Test]
+        public void Inject_NonManagerWithSceneFields_ThrowsLikeAScope()
+        {
+            // regression: TestInjector filled [InjectScene] fields a loaded scope rejects
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                TestInjector.Create().Inject(new SceneFieldHolder()));
+
+            Assert.That(exception.Message, Does.Contain("only supported on managers"));
+        }
     }
 }

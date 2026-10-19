@@ -9,8 +9,8 @@ namespace Kott.Scopes.Demo
     [Serializable]
     public sealed class ReactionGame : MiniGameBase
     {
-        private static readonly Color WaitColor = new(0.85f, 0.25f, 0.25f);
-        private static readonly Color GoColor = new(0.3f, 0.9f, 0.4f);
+        private static readonly Color _waitColor = new(0.85f, 0.25f, 0.25f);
+        private static readonly Color _goColor = new(0.3f, 0.9f, 0.4f);
 
         [SerializeField]
         private Vector2 _waitRange = new(1.5f, 3.5f);
@@ -39,7 +39,7 @@ namespace Kott.Scopes.Demo
             layout.childControlHeight = false;
 
             Vector2 center = new(0.5f, 0.5f);
-            _light = DemoUI.Panel(row, WaitColor, center, center).GetComponent<Image>();
+            _light = DemoUI.Panel(row, _waitColor, center, center).GetComponent<Image>();
             _light.rectTransform.sizeDelta = new Vector2(220f, 220f);
         }
 
@@ -63,7 +63,7 @@ namespace Kott.Scopes.Demo
             {
                 _go = true;
                 _timer = 0f;
-                _light.color = GoColor;
+                _light.color = _goColor;
                 Status.text = "NOW!";
             }
         }
@@ -86,7 +86,7 @@ namespace Kott.Scopes.Demo
         {
             _go = false;
             _timer = Random.Range(_waitRange.x, _waitRange.y);
-            _light.color = WaitColor;
+            _light.color = _waitColor;
             Status.text = status;
         }
     }

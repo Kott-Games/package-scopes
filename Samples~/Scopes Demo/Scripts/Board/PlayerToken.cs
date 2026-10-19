@@ -14,13 +14,9 @@ namespace Kott.Scopes.Demo
 
         private Renderer _renderer;
 
-        /// <summary>The player this token belongs to.</summary>
-        public int PlayerIndex { get; private set; }
-
         /// <summary>Assigns the token to a player and takes the player's color.</summary>
         public void Bind(int playerIndex)
         {
-            PlayerIndex = playerIndex;
             PlayerState player = _session.Players[playerIndex];
             name = $"Token {player.Name}";
             Primitives.Tint(_renderer, player.Color);

@@ -9,10 +9,3 @@ Desktop.ini
 .idea/
 *.user
 *.DotSettings.user
-
-# CI host project (TestProject~) generated folders
-TestProject~/Library/
-TestProject~/Temp/
-TestProject~/Logs/
-TestProject~/UserSettings/
-TestProject~/obj/

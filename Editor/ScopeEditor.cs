@@ -20,10 +20,10 @@ namespace Kott.Scopes
         private const float Indent = 12f;
         private const float Spacing = 2f;
 
-        private static readonly GUIContent SceneLabel =
+        private static readonly GUIContent _sceneLabel =
             new("Scene", "Loaded with the scope after its managers initialized. None = scene-less scope.");
 
-        private static readonly GUIContent ParentLabel = new("Parent",
+        private static readonly GUIContent _parentLabel = new("Parent",
             "The scope this one is expected to be loaded under (optional). Validation resolves injected contracts " +
             "through it; loading under a different parent logs a warning.");
 
@@ -83,7 +83,7 @@ namespace Kott.Scopes
 
             EditorGUI.BeginChangeCheck();
             DrawScene();
-            EditorGUILayout.PropertyField(_parentProperty, ParentLabel);
+            EditorGUILayout.PropertyField(_parentProperty, _parentLabel);
             EditorGUILayout.Space();
             _managerList.DoLayoutList();
             bool changed = EditorGUI.EndChangeCheck();
@@ -181,7 +181,7 @@ namespace Kott.Scopes
             }
 
             Rect line = EditorGUILayout.GetControlRect();
-            Rect field = EditorGUI.PrefixLabel(line, SceneLabel);
+            Rect field = EditorGUI.PrefixLabel(line, _sceneLabel);
             Rect popup = new(field.x, field.y, 100f, field.height);
             Rect open = new(field.xMax - 48f, field.y, 48f, field.height);
             Rect reference = new(popup.xMax + Spacing, field.y, open.x - popup.xMax - 2 * Spacing, field.height);

@@ -73,7 +73,7 @@ namespace Kott.Scopes
         }
 
         /// <summary>The manager contracts a manager of <paramref name="managerType" /> provides.</summary>
-        public static IReadOnlyList<Type> GetProvidedContracts(Type managerType)
+        internal static IReadOnlyList<Type> GetProvidedContracts(Type managerType)
         {
             return Injector.GetContracts(managerType);
         }
@@ -82,7 +82,7 @@ namespace Kott.Scopes
         ///     The types of the <see cref="InjectAttribute" /> fields of <paramref name="managerType" /> (including
         ///     inherited and private ones), without duplicates. Includes types that are not valid contracts.
         /// </summary>
-        public static IReadOnlyList<Type> GetInjectedContracts(Type managerType)
+        internal static IReadOnlyList<Type> GetInjectedContracts(Type managerType)
         {
             List<Type> injected = new();
             foreach (InjectedField field in Injector.GetInfo(managerType).Fields)
@@ -97,7 +97,7 @@ namespace Kott.Scopes
         }
 
         /// <summary>The <see cref="SceneLink" /> keys of the <see cref="InjectSceneAttribute" /> fields of <paramref name="managerType" />.</summary>
-        public static IReadOnlyList<string> GetSceneKeys(Type managerType)
+        internal static IReadOnlyList<string> GetSceneKeys(Type managerType)
         {
             List<string> keys = new();
             foreach (InjectedSceneField field in Injector.GetInfo(managerType).SceneFields)

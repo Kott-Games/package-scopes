@@ -75,7 +75,6 @@ namespace Kott.Scopes
             ScopeDefinition definition = ScriptableObject.CreateInstance<ScopeDefinition>();
             definition.SetScene(authoring.CreateAndRegister(scenePath));
             AssetDatabase.CreateAsset(definition, scopePath);
-            AssetDatabase.SaveAssets();
             return definition;
         }
 

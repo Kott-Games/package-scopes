@@ -8,11 +8,5 @@ namespace Kott.Scopes.Demo
     {
         /// <summary>Name shown in the UI and used for best scores.</summary>
         string DisplayName { get; }
-
-        /// <summary>Whether the round is over and the result was reported.</summary>
-        bool IsFinished { get; }
-
-        /// <summary>The final score, once <see cref="IsFinished" />.</summary>
-        int Score { get; }
     }
 }

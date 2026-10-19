@@ -15,6 +15,7 @@ namespace Kott.Scopes.Tests
         public void SetUp()
         {
             _buildScenes = EditorBuildSettings.scenes;
+            AssetDatabase.DeleteAsset(Folder); // left over by an aborted run
             AssetDatabase.CreateFolder("Assets", "KottScopesCreationTemp");
         }
 
