@@ -22,32 +22,45 @@ jobs:
           - name: Scopes + Addressables
             addressables: true
     steps:
-      # the Unity editor image needs more space than a fresh runner has
-      - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-
-      - uses: actions/checkout@v4
-
-      - uses: actions/cache@v4
+      - name: Checkout Package
+        uses: actions/checkout@v4
         with:
-          path: TestProject~/Library
-          key: Library-${{ matrix.name }}-${{ hashFiles('TestProject~/Packages/manifest.json') }}
-          restore-keys: Library-${{ matrix.name }}-
+          path: kott-scopes
+          fetch-depth: 1
 
-      - name: Install Addressables
-        if: matrix.addressables
+      # a host project generated per run instead of packageMode, so optional packages can be added;
+      # com.kott.utilities resolves from OpenUPM through the package's own dependency
+      - name: Create Test Project
+        env:
+          ADDRESSABLES: ${{ matrix.addressables && '2.9.1' || '' }}
         run: |
-          manifest='TestProject~/Packages/manifest.json'
-          jq '.dependencies["com.unity.addressables"] = "2.9.1"' "$manifest" > manifest.tmp && mv manifest.tmp "$manifest"
+          mkdir -p TestProject/Packages TestProject/ProjectSettings
+          echo "m_EditorVersion: 6000.3.19f1" > TestProject/ProjectSettings/ProjectVersion.txt
+          modules="accessibility adaptiveperformance ai androidjni animation assetbundle audio cloth director
+            imageconversion imgui jsonserialize particlesystem physics physics2d screencapture terrain terrainphysics
+            tilemap ui uielements umbra unityanalytics unitywebrequest unitywebrequestassetbundle unitywebrequestaudio
+            unitywebrequesttexture unitywebrequestwww vectorgraphics vehicles video vr wind xr"
+          jq -n --arg modules "$modules" --arg addressables "$ADDRESSABLES" '{
+            dependencies: ({
+              "com.kott.scopes": "file:../../kott-scopes",
+              "com.unity.test-framework": "1.6.0"
+            }
+            + ([$modules | splits("\\s+")] | map(select(. != "")) | map({key: "com.unity.modules.\(.)", value: "1.0.0"}) | from_entries)
+            + (if $addressables != "" then {"com.unity.addressables": $addressables} else {} end)),
+            scopedRegistries: [{name: "OpenUPM", url: "https://package.openupm.com", scopes: ["com.kott"]}],
+            testables: ["com.kott.scopes"]
+          }' > TestProject/Packages/manifest.json
+          cat TestProject/Packages/manifest.json
 
-      - uses: game-ci/unity-test-runner@v4.3.2
+      - name: Run Package Tests
+        uses: game-ci/unity-test-runner@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          projectPath: TestProject~
-          customImage: unityci/editor:ubuntu-6000.3.19f1-base-3
-          testMode: all
+          projectPath: TestProject
+          unityVersion: 6000.3.19f1
+          testMode: All # runs PlayMode and EditMode tests
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: Test results (${{ matrix.name }})
