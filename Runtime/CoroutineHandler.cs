@@ -1,51 +1,79 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Pool;
 
 namespace Kott.Scopes
 {
     /// <summary>
-    ///     Handles running of coroutines for other objects.
+    ///     Runs coroutines independent of any scope (they survive scope unloads). For coroutines that belong
+    ///     to a scope use <see cref="Scope.StartCoroutine" />.
     /// </summary>
+    /// <remarks>Created on first access like <see cref="ScopeHandler" />; a hand-placed instance is reused.</remarks>
+    [DisallowMultipleComponent]
+    [AddComponentMenu("Scopes/Coroutine Handler")]
     public sealed class CoroutineHandler : MonoBehaviour
     {
-        public static CoroutineHandler Instance { get; private set; }
+        private static CoroutineHandler _instance;
 
-        private ObjectPool<CoroutineRunner> _pool;
+        /// <summary>The coroutine handler; created on first access.</summary>
+        /// <exception cref="System.InvalidOperationException">Accessed outside play mode.</exception>
+        public static CoroutineHandler Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    ObjectUtility.FindOrCreateHost<CoroutineHandler>("Coroutines").Initialize();
+                }
+
+                return _instance;
+            }
+        }
 
         private void Awake()
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (_instance != null && _instance != this)
+            {
+                ScopeLogging.Current.Log(LogType.Warning, (object)
+                    $"A CoroutineHandler already exists on '{_instance.name}'; removing the one on '{name}'.", this);
+                Destroy(this);
+                return;
+            }
 
-            _pool = new ObjectPool<CoroutineRunner>(PoolCreate, PoolGet, PoolRelease, PoolDestroy);
+            Initialize();
         }
 
-        private CoroutineRunner PoolCreate()
+        private void OnDestroy()
         {
-            CoroutineRunner runner = gameObject.AddComponent<CoroutineRunner>();
-            return runner;
+            if (_instance == this)
+            {
+                _instance = null;
+            }
         }
 
-        private static void PoolGet(CoroutineRunner runner)
+        /// <summary>
+        ///     Runs <paramref name="routine" />; stop it with <c>StopCoroutine</c>. An exception ends only this routine
+        ///     and is logged through the scope system's logger (see <see cref="ScopeHandler.LoggerFactory" />).
+        /// </summary>
+        public Coroutine Run(IEnumerator routine)
         {
-            runner.enabled = true;
+            return StartCoroutine(SafeRoutine.Run(routine, ScopeLogging.Current.LogException));
         }
 
-        private static void PoolRelease(CoroutineRunner runner)
+        private void Initialize()
         {
-            runner.enabled = false;
+            if (_instance == this)
+            {
+                return;
+            }
+
+            _instance = this;
+            DontDestroyOnLoad(transform.root.gameObject);
         }
 
-        private static void PoolDestroy(CoroutineRunner runner)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
         {
-            Destroy(runner);
-        }
-
-        public void Run(IEnumerator routine)
-        {
-            CoroutineRunner runner = _pool.Get();
-            runner.Run(_pool, routine);
+            _instance = null;
         }
     }
 }

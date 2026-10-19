@@ -3,22 +3,29 @@
   "displayName": "Kott Scopes",
   "unity": "6000.0",
   "keywords": [
-    "core"
+    "scopes",
+    "dependency injection",
+    "game state",
+    "scene management",
+    "lifecycle"
   ],
   "version": "1.0.0",
-  "description": "Advanced game state management.",
+  "description": "Hierarchical game-state management with scoped dependency injection for Unity. A scope bundles plain C# managers and an optional scene: managers get their contracts injected from the scope tree, initialize in dependency order before the scene activates, and unload depth-first.",
   "author": {
     "name": "Paul Kloetzing",
     "email": "kloetzing.paul@gmail.com"
   },
-  "contributors": [
-    "Paul Kloetzing"
-  ],
-  "licensesUrl": "",
-  "changelogUrl": "",
-  "documentationUrl": "",
+  "licensesUrl": "https://github.com/Kott-Games/package-scopes/blob/master/LICENSE.md",
+  "changelogUrl": "https://github.com/Kott-Games/package-scopes/blob/master/CHANGELOG.md",
+  "documentationUrl": "https://github.com/Kott-Games/package-scopes#readme",
   "dependencies": {
-    "com.kott.utilities": "1.0.0",
-    "com.unity.addressables": "2.7.4"
-  }
+    "com.kott.utilities": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Scopes Demo",
+      "description": "A small board game showing the scope tree, scoped dependency injection, both scene loaders, loading screens and failure handling. Requires Addressables and uGUI.",
+      "path": "Samples~/Scopes Demo"
+    }
+  ]
 }

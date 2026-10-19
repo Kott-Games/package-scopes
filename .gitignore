@@ -1,2 +1,11 @@
-# MacOS Stuff
-*.DS_Store
+# OS
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vs/
+.idea/
+*.user
+*.DotSettings.user
