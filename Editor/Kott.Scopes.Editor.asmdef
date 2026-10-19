@@ -2,8 +2,7 @@
     "name": "Kott.Scopes.Editor",
     "rootNamespace": "Kott.Scopes",
     "references": [
-        "GUID:654bc5fac8fa28e448395e5b8ed61856",
-        "GUID:b0f31b71235c2cf4ba6fdc19f8bc7546"
+        "GUID:654bc5fac8fa28e448395e5b8ed61856"
     ],
     "includePlatforms": [
         "Editor"

@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace Kott.Scopes
@@ -15,8 +14,7 @@ namespace Kott.Scopes
     [AddComponentMenu("Scopes/Scene Root")]
     public sealed class SceneRoot : MonoBehaviour
     {
-        /// <summary>The scope this scene belongs to; <c>null</c> if the scene was not loaded through a scope.</summary>
-        public Scope Scope { get; private set; }
+        private Scope _scope;
 
         private void Awake()
         {
@@ -36,27 +34,15 @@ namespace Kott.Scopes
                 return;
             }
 
-            Scope = activating;
-
-            try
-            {
-                Scope.BindScene(gameObject.scene);
-            }
-            catch (Exception exception)
-            {
-                // fails the load once the scene finished loading
-                Scope.SceneError = exception;
-                return;
-            }
-
-            Scope.InvokeSceneAwake();
+            _scope = activating;
+            _scope.ActivateScene(gameObject.scene);
         }
 
         private void Start()
         {
-            if (Scope is { SceneError: null })
+            if (_scope is { SceneError: null })
             {
-                Scope.InvokeSceneStart();
+                _scope.InvokeSceneStart();
             }
         }
     }

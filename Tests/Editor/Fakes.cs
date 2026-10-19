@@ -83,6 +83,11 @@ namespace Kott.Scopes.Tests
             yield break;
         }
 
+        public override void OnSceneAwake()
+        {
+            TestLog.Add($"{Id}.SceneAwake");
+        }
+
         public override void OnSceneExit()
         {
             TestLog.Add($"{Id}.SceneExit");
@@ -195,6 +200,7 @@ namespace Kott.Scopes.Tests
     {
         public string Name = "Scene";
         public bool FailLoad;
+        public bool HasSceneRoot = true;
 
         public FakeSceneReference()
         { }
@@ -210,20 +216,24 @@ namespace Kott.Scopes.Tests
 
         public override ISceneLoader CreateLoader(ILogger logger)
         {
-            return new FakeSceneLoader(Name, FailLoad);
+            return new FakeSceneLoader(Name, FailLoad, HasSceneRoot);
         }
     }
 
-    /// <summary>Completes instantly without a real scene.</summary>
+    /// <summary>
+    ///     Completes instantly without loading a scene. Activates the active (test) scene like its SceneRoot would.
+    /// </summary>
     internal sealed class FakeSceneLoader : ISceneLoader
     {
         private readonly string _name;
         private readonly bool _failLoad;
+        private readonly bool _hasSceneRoot;
 
-        public FakeSceneLoader(string name, bool failLoad)
+        public FakeSceneLoader(string name, bool failLoad, bool hasSceneRoot)
         {
             _name = name;
             _failLoad = failLoad;
+            _hasSceneRoot = hasSceneRoot;
         }
 
         public Scene Scene => default;
@@ -237,6 +247,11 @@ namespace Kott.Scopes.Tests
             if (_failLoad)
             {
                 throw new InvalidOperationException($"{_name} failed to load");
+            }
+
+            if (_hasSceneRoot)
+            {
+                ScopeSystem.ActivatingScope.ActivateScene(SceneManager.GetActiveScene());
             }
 
             progress?.Report(new ProgressReport(1f, null));
@@ -259,10 +274,6 @@ namespace Kott.Scopes.Tests
         }
     }
 
-    /// <summary>
-    ///     Records log output instead of printing it, so expected failures don't show up as console errors.
-    ///     Expectations are checked by <see cref="Verify" />, which also fails on unexpected errors.
-    /// </summary>
     internal sealed class DelegateLoggerFactory : ILoggerFactory
     {
         private readonly Func<string, ILogger> _create;
@@ -278,6 +289,10 @@ namespace Kott.Scopes.Tests
         }
     }
 
+    /// <summary>
+    ///     Records log output instead of printing it, so expected failures don't show up as console errors.
+    ///     Expectations are checked by <see cref="Verify" />, which also fails on unexpected errors.
+    /// </summary>
     internal sealed class RecordingLogHandler : ILogHandler
     {
         private readonly List<(LogType Type, string Message)> _entries = new();

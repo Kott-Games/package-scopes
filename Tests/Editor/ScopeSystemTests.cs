@@ -321,10 +321,8 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void BindScene_SceneFieldsAndComponents_InjectedAndClearedOnUnbind()
+        public void Load_WithScene_SceneFieldsAndComponentsInjectedAndClearedOnUnload()
         {
-            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), new ProbeManager(),
-                new SceneConsumer()));
             GameObject door = CreateSceneObject("Door");
             AddLink(door, "door");
             GameObject spawn = CreateSceneObject("Spawn");
@@ -332,32 +330,73 @@ namespace Kott.Scopes.Tests
             AddLink(spawn, "spawn");
             AwakeProbe component = CreateSceneObject("Tile").AddComponent<AwakeProbe>();
 
-            scope.BindScene(SceneManager.GetActiveScene());
+            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), new ProbeManager(),
+                new SceneConsumer()));
 
             SceneConsumer consumer = scope.Managers.OfType<SceneConsumer>().Single();
             Assert.That(consumer.Door, Is.SameAs(door));
             Assert.That(consumer.Spawn, Is.SameAs(collider));
             Assert.That(component.Probe, Is.SameAs(scope.Managers.OfType<ProbeManager>().Single()));
 
-            scope.UnbindScene();
+            _system.UnloadScope(scope, null);
+            RunAll();
 
             Assert.That(consumer.Door, Is.Null);
             Assert.That(consumer.Spawn, Is.Null);
         }
 
         [Test]
-        public void BindScene_SceneLinkMissing_ThrowsNamingKey()
+        public void Load_SceneLinkMissing_FailsNamingKeyWithoutSceneCallbacks()
         {
-            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), new SceneConsumer()));
             AddLink(CreateSceneObject("Door"), "door");
+            ScopeDefinition definition = CreateDefinition("S", new FakeSceneReference("Scene"), Recording("A"),
+                new SceneConsumer());
+            _log.Expect(LogType.Error, "no SceneLink with key 'spawn'");
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-                scope.BindScene(SceneManager.GetActiveScene()));
+            ScopeOperation load = _system.LoadScope(definition, null, null);
+            RunAll();
 
-            Assert.That(exception.Message, Is.EqualTo(
+            Assert.That(load.Exception.Message, Is.EqualTo(
                 "Cannot inject scene objects into SceneConsumer: Spawn: no SceneLink with key 'spawn' in the scene " +
                 "of scope 'S'."));
-            Assert.That(((SceneConsumer)scope.Managers[0]).Door, Is.Null, "all or nothing");
+            // regression: OnSceneExit ran although OnSceneAwake never did
+            Assert.That(TestLog.Entries, Is.EqualTo(new[]
+            {
+                "A.Initialize", "A.Initialized", "Scene.Load", "Scene.Unload", "A.Uninitialize",
+            }));
+        }
+
+        [Test]
+        public void Load_SceneWithoutSceneRoot_Fails()
+        {
+            // regression: the load succeeded without scene injection or scene callbacks
+            ScopeDefinition definition = CreateDefinition("S",
+                new FakeSceneReference("Scene") { HasSceneRoot = false }, Recording("A"));
+            _log.Expect(LogType.Error, "has no SceneRoot");
+
+            ScopeOperation load = _system.LoadScope(definition, null, null);
+            RunAll();
+
+            Assert.That(load.Exception.Message, Does.StartWith("The scene of scope 'S' has no SceneRoot."));
+            Assert.That(TestLog.Entries, Is.EqualTo(new[]
+            {
+                "A.Initialize", "A.Initialized", "Scene.Load", "Scene.Unload", "A.Uninitialize",
+            }));
+        }
+
+        [Test]
+        public void Unload_WithScene_SceneExitPairsSceneAwake()
+        {
+            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"), Recording("A")));
+
+            _system.UnloadScope(scope, null);
+            RunAll();
+
+            Assert.That(TestLog.Entries, Is.EqualTo(new[]
+            {
+                "A.Initialize", "A.Initialized", "Scene.Load", "A.SceneAwake", "A.SceneExit", "Scene.Unload",
+                "A.Uninitialize",
+            }));
         }
 
         [Test]
@@ -714,7 +753,7 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void IsLoaded_FollowsLoadAndUnload()
+        public void IsLoaded_LoadThenUnload_TrueThenFalse()
         {
             ScopeDefinition definition = CreateDefinition("S", null);
             Assert.That(_system.IsLoaded(definition), Is.False);

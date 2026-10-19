@@ -143,8 +143,7 @@ namespace Kott.Scopes
                 throw new ArgumentNullException(nameof(prefab));
             }
 
-            return InstantiateInjected(prefab, parent, (original, holder) => Object.Instantiate(original, holder),
-                instance => instance);
+            return InstantiateInjected(prefab, parent, instance => instance);
         }
 
         /// <summary>
@@ -161,15 +160,14 @@ namespace Kott.Scopes
                 throw new ArgumentNullException(nameof(prefab));
             }
 
-            return InstantiateInjected(prefab, parent, (original, holder) => Object.Instantiate(original, holder),
-                instance => instance.gameObject);
+            return InstantiateInjected(prefab, parent, instance => instance.gameObject);
         }
 
         /// <summary>Starts a coroutine that stops when this scope unloads.</summary>
         /// <exception cref="InvalidOperationException">The scope is already unloaded.</exception>
         public Coroutine StartCoroutine(IEnumerator routine)
         {
-            if (_driver == null)
+            if (State is not (ScopeState.Loading or ScopeState.Loaded))
             {
                 throw new InvalidOperationException($"Cannot start a coroutine on {this}: it is {State}.");
             }
@@ -339,8 +337,28 @@ namespace Kott.Scopes
         }
 
         /// <summary>
+        ///     Binds <paramref name="scene" /> and calls <see cref="Manager.OnSceneAwake" />. A binding error is stored
+        ///     in <see cref="SceneError" /> and fails the load once the scene finished loading. Called by its
+        ///     <see cref="SceneRoot" />.
+        /// </summary>
+        internal void ActivateScene(Scene scene)
+        {
+            try
+            {
+                BindScene(scene);
+            }
+            catch (Exception exception)
+            {
+                SceneError = exception;
+                return;
+            }
+
+            InvokeSceneAwake();
+        }
+
+        /// <summary>
         ///     Collects the scene's <see cref="SceneLink" />s, fills the managers' <see cref="InjectSceneAttribute" />
-        ///     fields and injects the scene's components. Called by its <see cref="SceneRoot" />.
+        ///     fields and injects the scene's components.
         /// </summary>
         internal void BindScene(Scene scene)
         {
@@ -492,18 +510,10 @@ namespace Kott.Scopes
 
         private void InjectObject(object target)
         {
-            if (target is not Manager && Injector.GetInfo(target.GetType()).SceneFields.Count > 0)
-            {
-                throw new InvalidOperationException(
-                    $"{target.GetType().Name} has [InjectScene] fields, which are only supported on managers. " +
-                    "Reference scene objects with serialized fields instead.");
-            }
-
             Injector.Inject(target, _resolve, $"{this} or its parents");
         }
 
-        private T InstantiateInjected<T>(T prefab, Transform parent, Func<T, Transform, T> instantiate,
-            Func<T, GameObject> getGameObject)
+        private T InstantiateInjected<T>(T prefab, Transform parent, Func<T, GameObject> getGameObject)
             where T : Object
         {
             ThrowIfDisposed();
@@ -514,7 +524,7 @@ namespace Kott.Scopes
             holder.SetActive(false);
             holder.transform.SetParent(target, false);
 
-            T instance = instantiate(prefab, holder.transform);
+            T instance = Object.Instantiate(prefab, holder.transform);
             GameObject instanceObject = getGameObject(instance);
             try
             {

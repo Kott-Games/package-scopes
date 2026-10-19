@@ -113,10 +113,20 @@ namespace Kott.Scopes
         /// <param name="target">The object to inject.</param>
         /// <param name="resolve">Returns the provider of a contract, or <c>null</c>.</param>
         /// <param name="source">Where contracts come from, for messages ("scope 'Game' or its parents").</param>
-        /// <exception cref="InvalidOperationException">A field is not a contract, or a required contract is missing.</exception>
+        /// <exception cref="InvalidOperationException">
+        ///     A field is not a contract, a required contract is missing, or <paramref name="target" /> is not a manager
+        ///     but has <see cref="InjectSceneAttribute" /> fields.
+        /// </exception>
         public static void Inject(object target, Func<Type, object> resolve, string source)
         {
             InjectionInfo info = GetInfo(target.GetType());
+            if (target is not Manager && info.SceneFields.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"{target.GetType().Name} has [InjectScene] fields, which are only supported on managers. " +
+                    "Reference scene objects with serialized fields instead.");
+            }
+
             if (info.Fields.Count == 0)
             {
                 return;

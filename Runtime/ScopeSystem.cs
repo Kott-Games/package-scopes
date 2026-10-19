@@ -42,17 +42,13 @@ namespace Kott.Scopes
             get => _loggerFactory;
             set
             {
-                ILoggerFactory previous = _loggerFactory;
-                _loggerFactory = value ?? throw new ArgumentNullException(nameof(value));
-                try
+                if (value == null)
                 {
-                    _logger = CreateLogger(ScopeLogging.Category);
+                    throw new ArgumentNullException(nameof(value));
                 }
-                catch
-                {
-                    _loggerFactory = previous;
-                    throw;
-                }
+
+                _logger = CreateLogger(value, ScopeLogging.Category);
+                _loggerFactory = value;
             }
         }
 
@@ -259,7 +255,7 @@ namespace Kott.Scopes
                     foreach (Manager manager in scope.Managers)
                     {
                         manager.Scope = scope;
-                        manager.Logger = CreateLogger(ScopeLogging.CategoryOf(manager.GetType()));
+                        manager.Logger = CreateLogger(_loggerFactory, ScopeLogging.CategoryOf(manager.GetType()));
                     }
 
                     scope.RegisterContracts();
@@ -322,7 +318,10 @@ namespace Kott.Scopes
                     ActivatingScope = null;
 
                     scope.SceneLoaded = true; // also on failure: a partially loaded scene must be unloaded
-                    error ??= scope.SceneError;
+                    error ??= scope.SceneError ?? (scope.SceneBound
+                        ? null
+                        : new InvalidOperationException(
+                            $"The scene of {scope} has no SceneRoot. Add one (the Scope Scene template has it)."));
                 }
             }
 
@@ -345,7 +344,8 @@ namespace Kott.Scopes
 
             if (scope.SceneLoaded)
             {
-                if (scope.SceneBound)
+                // only if OnSceneAwake ran
+                if (scope.SceneBound && scope.SceneError == null)
                 {
                     scope.InvokeSceneExit();
                 }
@@ -491,9 +491,9 @@ namespace Kott.Scopes
             }
         }
 
-        private ILogger CreateLogger(string category)
+        private static ILogger CreateLogger(ILoggerFactory factory, string category)
         {
-            return _loggerFactory.CreateLogger(category) ??
+            return factory.CreateLogger(category) ??
                    throw new InvalidOperationException($"The logger factory returned null for category '{category}'.");
         }
 
