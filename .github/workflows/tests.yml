@@ -28,30 +28,14 @@ jobs:
           path: kott-scopes
           fetch-depth: 1
 
-      # a host project generated per run instead of packageMode, so optional packages can be added;
-      # com.kott.utilities resolves from OpenUPM through the package's own dependency
-      - name: Create Test Project
-        env:
-          ADDRESSABLES: ${{ matrix.addressables && '2.9.1' || '' }}
-        run: |
-          mkdir -p TestProject/Packages TestProject/ProjectSettings
-          echo "m_EditorVersion: 6000.3.19f1" > TestProject/ProjectSettings/ProjectVersion.txt
-          modules="accessibility adaptiveperformance ai androidjni animation assetbundle audio cloth director
-            imageconversion imgui jsonserialize particlesystem physics physics2d screencapture terrain terrainphysics
-            tilemap ui uielements umbra unityanalytics unitywebrequest unitywebrequestassetbundle unitywebrequestaudio
-            unitywebrequesttexture unitywebrequestwww vectorgraphics vehicles video vr wind xr"
-          jq -n --arg modules "$modules" --arg addressables "$ADDRESSABLES" '{
-            dependencies: ({
-              "com.kott.scopes": "file:../../kott-scopes",
-              "com.unity.test-framework": "1.6.0"
-            }
-            + ([$modules | splits("\\s+")] | map(select(. != "")) | map({key: "com.unity.modules.\(.)", value: "1.0.0"}) | from_entries)
-            + (if $addressables != "" then {"com.unity.addressables": $addressables} else {} end)),
-            scopedRegistries: [{name: "OpenUPM", url: "https://package.openupm.com", scopes: ["com.kott"]}],
-            testables: ["com.kott.scopes"]
-          }' > TestProject/Packages/manifest.json
-          cat TestProject/Packages/manifest.json
+      # Addressables is optional; declaring it in the checked-out package.json pulls it into the test project
+      - name: Add Addressables
+        if: matrix.addressables
+        working-directory: kott-scopes
+        run: jq '.dependencies["com.unity.addressables"] = "2.9.1"' package.json > package.tmp && mv package.tmp package.json
 
+      # packageMode creates a temporary empty project and adds the package as a testable;
+      # com.kott.utilities resolves from OpenUPM
       - name: Run Package Tests
         uses: game-ci/unity-test-runner@v4
         env:
@@ -59,8 +43,11 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          projectPath: TestProject
+          packageMode: true
+          projectPath: kott-scopes
           unityVersion: 6000.3.19f1
+          scopedRegistryUrl: https://package.openupm.com
+          registryScopes: com.kott
           testMode: All # runs PlayMode and EditMode tests
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: Test results (${{ matrix.name }})
