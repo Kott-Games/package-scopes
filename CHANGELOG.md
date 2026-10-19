@@ -5,7 +5,7 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-19
 
 ### Added
 - Scoped dependency injection. Managers provide **manager contracts** (interfaces extending
@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Breaking:** renamed the `Scope` asset to `ScopeDefinition` and `RuntimeScope` (the loaded instance) to
   `Scope`. Existing assets keep working (same script GUID). `ScopeOperation.Definition`/`Scope`,
-  `Manager.Scope`, `SceneRoot.Scope`.
+  `Manager.Scope`.
 - **Breaking:** manager callbacks renamed: `SceneAwake`/`SceneStart`/`SceneExit` →
   `OnSceneAwake`/`OnSceneStart`/`OnSceneExit`, `SceneUpdate`/`SceneFixedUpdate` → `Update`/`FixedUpdate`.
 - **Breaking:** managers are plain `[Serializable]` C# classes stored in the definition asset
@@ -64,11 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Addressables is no longer a dependency.
 - **Breaking:** `LoadScope`/`UnloadScope` return a `ScopeOperation` and run immediately (queued, one
   at a time) instead of returning an `IEnumerator` with a done callback.
-- **Breaking:** `Bootstrap` references the root `Scope` directly.
+- **Breaking:** `Bootstrap` references the root `ScopeDefinition` directly instead of an Addressables reference.
 - `ScopeHandler` and `CoroutineHandler` create a persistent host on first use; hand-placed instances are
   reused and never duplicated.
-- `SceneUpdate`/`SceneFixedUpdate` are driven by the scope root, so scene-less scopes receive them too;
-  they start once the scope is fully loaded.
+- `Update`/`FixedUpdate` are driven by the scope root, so scene-less scopes receive them too; they start
+  once the scope is fully loaded.
+- `CoroutineHandler.Run` returns the `Coroutine`; routines run on the handler itself (no runner pool).
 
 ### Removed
 - **Breaking:** the global singleton lookup: `ISingleton`, `ISingletonContract<T>`, `Singleton<T>`,
@@ -80,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   load cleans up the partially loaded scope.
 - `RootScope` is cleared when the root scope unloads.
 - `OnApplicationQuit` no longer throws when nothing is loaded.
-- `CoroutineHandler` runners return to the pool when their routine throws.
+- A throwing `CoroutineHandler` routine no longer affects later ones.
+- A scope scene without a `SceneRoot` fails the load instead of loading without scene injection and
+  callbacks. `OnSceneExit` is only called after `OnSceneAwake`.
 - Contracts provided twice, missing contracts and missing/duplicate `SceneLink` keys report descriptive
   errors.
