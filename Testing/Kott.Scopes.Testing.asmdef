@@ -1,7 +1,9 @@
 {
     "name": "Kott.Scopes.Testing",
     "rootNamespace": "Kott.Scopes.Testing",
-    "references": [],
+    "references": [
+        "GUID:654bc5fac8fa28e448395e5b8ed61856"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

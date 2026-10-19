@@ -349,8 +349,8 @@ namespace Kott.Scopes.Tests
         public void Load_SceneLinkMissing_FailsNamingKeyWithoutSceneCallbacks()
         {
             AddLink(CreateSceneObject("Door"), "door");
-            ScopeDefinition definition = CreateDefinition("S", new FakeSceneReference("Scene"), Recording("A"),
-                new SceneConsumer());
+            ScopeDefinition definition = CreateDefinition("S", new FakeSceneReference("Scene"),
+                new SceneConsumer() { Id = "A" });
             _log.Expect(LogType.Error, "no SceneLink with key 'spawn'");
 
             ScopeOperation load = _system.LoadScope(definition, null, null);
