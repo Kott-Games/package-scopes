@@ -2,6 +2,7 @@
 
 Hierarchical game-state management with scoped dependency injection for Unity.
 
+[![Tests](https://github.com/Kott-Games/package-scopes/actions/workflows/tests.yml/badge.svg)](https://github.com/Kott-Games/package-scopes/actions/workflows/tests.yml)
 ![Unity 6000.0+](https://img.shields.io/badge/Unity-6000.0%2B-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue)
 

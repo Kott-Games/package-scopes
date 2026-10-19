@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: [master, 'release/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  checks: write
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Scopes
+          - name: Scopes + Addressables
+            addressables: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: TestProject~/Library
+          key: Library-${{ matrix.name }}-${{ hashFiles('TestProject~/Packages/manifest.json') }}
+          restore-keys: Library-${{ matrix.name }}-
+
+      - name: Install Addressables
+        if: matrix.addressables
+        run: |
+          manifest='TestProject~/Packages/manifest.json'
+          jq '.dependencies["com.unity.addressables"] = "2.9.1"' "$manifest" > manifest.tmp && mv manifest.tmp "$manifest"
+
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: TestProject~
+          testMode: all
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: Test results (${{ matrix.name }})
