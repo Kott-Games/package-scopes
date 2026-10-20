@@ -28,8 +28,26 @@ depth-first in reverse order.
 
 ## Installation
 
-Scopes depends on [Kott Utilities](https://github.com/Kott-Games/package-utilities), which Unity can't
-resolve from a git URL by itself. In *Package Manager > + > Install package from git URL*, add in order:
+Via [OpenUPM](https://openupm.com/packages/com.kott.scopes/), which also resolves the
+[Kott Utilities](https://github.com/Kott-Games/package-utilities) dependency:
+
+```
+openupm add com.kott.scopes
+```
+
+or add the registry to `Packages/manifest.json` by hand:
+
+```json
+"scopedRegistries": [
+  { "name": "OpenUPM", "url": "https://package.openupm.com", "scopes": ["com.kott"] }
+],
+"dependencies": {
+  "com.kott.scopes": "1.0.0"
+}
+```
+
+Alternatively from git URLs. Unity can't resolve the Utilities dependency from a git URL by itself, so in
+*Package Manager > + > Install package from git URL*, add in order:
 
 ```
 https://github.com/Kott-Games/package-utilities.git#v1.0.0
