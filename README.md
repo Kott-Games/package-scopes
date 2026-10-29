@@ -151,7 +151,8 @@ GameSession session = TestInjector.Create()
     .Inject(new GameSession());
 ```
 
-`TestInjector` lives in `Kott.Scopes.Testing` (reference it from your test assembly). It applies the same rules
+`TestInjector` lives in `Kott.Scopes.Testing` (reference it from your test assembly; it is compiled in the editor and in
+test builds, not in regular player builds). It applies the same rules
 as a loaded scope: a missing required contract throws.
 
 ## Samples
