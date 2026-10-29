@@ -42,7 +42,7 @@ or add the registry to `Packages/manifest.json` by hand:
   { "name": "OpenUPM", "url": "https://package.openupm.com", "scopes": ["com.kott"] }
 ],
 "dependencies": {
-  "com.kott.scopes": "1.0.0"
+  "com.kott.scopes": "1.0.1"
 }
 ```
 
@@ -51,7 +51,7 @@ Alternatively from git URLs. Unity can't resolve the Utilities dependency from a
 
 ```
 https://github.com/Kott-Games/package-utilities.git#v1.0.0
-https://github.com/Kott-Games/package-scopes.git#v1.0.0
+https://github.com/Kott-Games/package-scopes.git#v1.0.1
 ```
 
 Optional: installing **Addressables** (`com.unity.addressables`) enables Addressables scenes.
@@ -151,7 +151,8 @@ GameSession session = TestInjector.Create()
     .Inject(new GameSession());
 ```
 
-`TestInjector` lives in `Kott.Scopes.Testing` (reference it from your test assembly). It applies the same rules
+`TestInjector` lives in `Kott.Scopes.Testing` (reference it from your test assembly; it is compiled in the editor and in
+test builds, not in regular player builds). It applies the same rules
 as a loaded scope: a missing required contract throws.
 
 ## Samples

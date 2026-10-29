@@ -9,7 +9,7 @@
     "scene management",
     "lifecycle"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Hierarchical game-state management with scoped dependency injection for Unity. A scope bundles plain C# managers and an optional scene: managers get their contracts injected from the scope tree, initialize in dependency order before the scene activates, and unload depth-first.",
   "author": {
     "name": "Paul Kloetzing",
