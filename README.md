@@ -42,7 +42,7 @@ or add the registry to `Packages/manifest.json` by hand:
   { "name": "OpenUPM", "url": "https://package.openupm.com", "scopes": ["com.kott"] }
 ],
 "dependencies": {
-  "com.kott.scopes": "1.0.0"
+  "com.kott.scopes": "1.0.1"
 }
 ```
 
@@ -51,7 +51,7 @@ Alternatively from git URLs. Unity can't resolve the Utilities dependency from a
 
 ```
 https://github.com/Kott-Games/package-utilities.git#v1.0.0
-https://github.com/Kott-Games/package-scopes.git#v1.0.0
+https://github.com/Kott-Games/package-scopes.git#v1.0.1
 ```
 
 Optional: installing **Addressables** (`com.unity.addressables`) enables Addressables scenes.
