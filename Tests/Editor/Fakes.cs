@@ -185,6 +185,27 @@ namespace Kott.Scopes.Tests
         public GameObject Door;
     }
 
+    /// <summary>Takes all links of a key: an array of components and a list of GameObjects.</summary>
+    [Serializable]
+    internal class SceneCollectionConsumer : Manager
+    {
+        [InjectScene("spawn")]
+        public BoxCollider[] Spawns;
+
+        [InjectScene("spawn")]
+        public List<GameObject> SpawnObjects;
+    }
+
+    [Serializable]
+    internal class OptionalSceneCollectionConsumer : Manager
+    {
+        [InjectScene("spawn", Optional = true)]
+        public BoxCollider[] Spawns;
+
+        [InjectScene("door", Optional = true)]
+        public List<GameObject> Doors;
+    }
+
     /// <summary>Throws synchronously from a non-iterator override.</summary>
     [Serializable]
     internal class ThrowImmediatelyManager : Manager

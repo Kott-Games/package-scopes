@@ -871,6 +871,27 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
+        public void Load_SharedSceneLinkKey_CollectionFieldsAndLookupGetAll()
+        {
+            GameObject first = CreateSceneObject("First");
+            BoxCollider firstCollider = first.AddComponent<BoxCollider>();
+            AddLink(first, "spawn");
+            GameObject second = CreateSceneObject("Second");
+            BoxCollider secondCollider = second.AddComponent<BoxCollider>();
+            AddLink(second, "spawn");
+
+            Scope scope = LoadAndRun(CreateDefinition("S", new FakeSceneReference("Scene"),
+                new SceneCollectionConsumer()));
+
+            SceneCollectionConsumer consumer = scope.Managers.OfType<SceneCollectionConsumer>().Single();
+            Assert.That(consumer.Spawns, Is.EqualTo(new[] { firstCollider, secondCollider }));
+            Assert.That(consumer.SpawnObjects, Is.EqualTo(new[] { first, second }));
+            Assert.That(scope.GetSceneGameObjects("spawn"), Is.EqualTo(new[] { first, second }));
+            Assert.That(scope.GetSceneGameObjects("door"), Is.Empty);
+            Assert.Throws<InvalidOperationException>(() => scope.GetSceneGameObject("spawn"));
+        }
+
+        [Test]
         public void GetSceneGameObject_UnknownKey_ThrowsWithKeyAndScope()
         {
             Scope scope = LoadAndRun(CreateDefinition("S", null));

@@ -47,6 +47,12 @@ namespace Kott.Scopes.Tests
             public BoxCollider Spawn;
         }
 
+        private sealed class NumbersTarget
+        {
+            [InjectScene("numbers")]
+            public List<int> Numbers;
+        }
+
         private readonly List<Object> _createdObjects = new();
 
         [TearDown]
@@ -140,7 +146,7 @@ namespace Kott.Scopes.Tests
             SceneTarget target = new();
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-                Injector.InjectScene(target, _ => null, "the scene of scope 'Board'"));
+                Injector.InjectScene(target, (string _) => (GameObject)null, "the scene of scope 'Board'"));
 
             Assert.That(exception.Message, Does.Contain(
                 "Door: no SceneLink with key 'door' in the scene of scope 'Board'."));
@@ -158,6 +164,96 @@ namespace Kott.Scopes.Tests
             Assert.That(exception.Message,
                 Does.Contain("Spawn: SceneLink 'spawn' (Spawn) has no BoxCollider component."));
             Assert.That(target.Door, Is.Null, "all or nothing");
+        }
+
+        [Test]
+        public void InjectScene_CollectionFields_GetAllLinksInOrder()
+        {
+            GameObject first = CreateGameObject("First");
+            BoxCollider firstCollider = first.AddComponent<BoxCollider>();
+            GameObject second = CreateGameObject("Second");
+            BoxCollider secondCollider = second.AddComponent<BoxCollider>();
+            SceneCollectionConsumer target = new();
+
+            Injector.InjectScene(target, key => key == "spawn" ? new[] { first, second } : null, "test");
+
+            Assert.That(target.Spawns, Is.EqualTo(new[] { firstCollider, secondCollider }));
+            Assert.That(target.SpawnObjects, Is.EqualTo(new[] { first, second }));
+        }
+
+        [Test]
+        public void InjectScene_SingleFieldWithSharedKey_ThrowsNamingCount()
+        {
+            GameObject door = CreateGameObject("Door");
+            GameObject other = CreateGameObject("Other Door");
+            SceneTarget target = new();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                Injector.InjectScene(target, key => key == "door" ? new[] { door, other } : null, "the test"));
+
+            Assert.That(exception.Message, Does.Contain(
+                "Door: 2 SceneLinks share the key 'door' in the test, but the field takes one."));
+            Assert.That(target.Door, Is.Null, "all or nothing");
+        }
+
+        [Test]
+        public void InjectScene_RequiredCollectionWithoutLinks_Throws()
+        {
+            SceneCollectionConsumer target = new();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                Injector.InjectScene(target, (string _) => Array.Empty<GameObject>(), "the test"));
+
+            Assert.That(exception.Message, Does.Contain("Spawns: no SceneLink with key 'spawn' in the test."));
+        }
+
+        [Test]
+        public void InjectScene_OptionalCollectionWithoutLinks_GetsEmptyCollection()
+        {
+            OptionalSceneCollectionConsumer target = new();
+
+            Injector.InjectScene(target, (string _) => (IReadOnlyList<GameObject>)null, "the test");
+
+            Assert.That(target.Spawns, Is.Not.Null.And.Empty);
+            Assert.That(target.Doors, Is.Not.Null.And.Empty);
+        }
+
+        [Test]
+        public void InjectScene_OptionalCollection_SkipsObjectsWithoutComponent()
+        {
+            GameObject with = CreateGameObject("With");
+            BoxCollider collider = with.AddComponent<BoxCollider>();
+            GameObject without = CreateGameObject("Without");
+            OptionalSceneCollectionConsumer target = new();
+
+            Injector.InjectScene(target, key => key == "spawn" ? new[] { without, with } : null, "the test");
+
+            Assert.That(target.Spawns, Is.EqualTo(new[] { collider }));
+        }
+
+        [Test]
+        public void InjectScene_CollectionLinkWithoutComponent_Throws()
+        {
+            GameObject with = CreateGameObject("With");
+            with.AddComponent<BoxCollider>();
+            GameObject without = CreateGameObject("Without");
+            SceneCollectionConsumer target = new();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                Injector.InjectScene(target, key => new[] { with, without }, "the test"));
+
+            Assert.That(exception.Message,
+                Does.Contain("Spawns: SceneLink 'spawn' (Without) has no BoxCollider component."));
+            Assert.That(target.SpawnObjects, Is.Null, "all or nothing");
+        }
+
+        [Test]
+        public void GetFieldProblem_CollectionOfUnsupportedType_NamesElementType()
+        {
+            InjectedSceneField field = Injector.GetInfo(typeof(NumbersTarget)).SceneFields.Single();
+
+            Assert.That(field.IsCollection, Is.True);
+            Assert.That(Injector.GetFieldProblem(field), Does.StartWith("'Int32' cannot come from a scene object."));
         }
 
         [Test]

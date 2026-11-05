@@ -5,6 +5,20 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Several `SceneLink`s may share a key. `[InjectScene("key")]` on a `T[]` or `List<T>` field (T: `GameObject`, a
+  component or an interface) receives the objects of all links with that key, in scene hierarchy order. An
+  optional collection field gets an empty collection when no link has the key.
+- `Scope.GetSceneGameObjects(key)` returns the GameObjects of all links with a key.
+- `TestInjector.AddSceneObject` accepts the same key more than once, like links sharing a key.
+
+### Changed
+- A shared key is no longer an error by itself. It fails a scope load, and the validator reports
+  `DuplicateSceneLinkKey`, only when a single-object `[InjectScene]` field uses that key.
+  `GetSceneGameObject` / `TryGetSceneGameObject` / `GetSceneComponent` throw for a shared key.
+
 ## [1.0.1] - 2026-10-29
 
 ### Fixed

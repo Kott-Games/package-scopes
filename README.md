@@ -19,7 +19,8 @@ depth-first in reverse order.
   own scope → parent → root. Scene components and runtime-instantiated prefabs are injected before `Awake`.
 - **Ordered lifecycle**: async `Initialize`/`Uninitialize` in dependency order, scene callbacks,
   `Update`/`FixedUpdate` also for scene-less scopes.
-- **Scene objects by key**: `SceneLink` + `[InjectScene("key")]` fields.
+- **Scene objects by key**: `SceneLink` + `[InjectScene("key")]` fields; several links may share a key and
+  fill an array or `List` field (spawn points, waypoints).
 - **Scene loaders**: build profile scene list, or Addressables (when installed).
 - **Queued operations** with progress and results (`ScopeOperation`), load/unload events.
 - **Editor tooling**: definition inspector (type picker, contracts, init order, health), validator for
@@ -128,6 +129,11 @@ flowchart LR
   GameObject living as long as the scope).
 - **Contracts** are interfaces extending `IManagerContract`. One provider per parent chain; sibling scopes may
   provide the same contract. `[Inject(Optional = true)]` allows a missing one.
+- **Scene links**: `[InjectScene("key")]` on a `GameObject`, component or interface field takes the one
+  `SceneLink` with that key; on a `T[]` or `List<T>` field it takes all of them, in scene hierarchy order
+  (`[InjectScene("SpawnPoint")] private SpawnPoint[] _spawnPoints;`). A single-object field fails if several links
+  share its key. From code: `Scope.GetSceneGameObject(key)` / `GetSceneComponent<T>(key)` for one,
+  `Scope.GetSceneGameObjects(key)` for all.
 - **Initialization order**: a manager initializes after the same-scope managers it injects, otherwise in list
   order. Cycles fail the load. Managers of parent scopes are always already initialized.
 - **Operations** are queued and run one at a time. A load started from `Initialize` runs after the current

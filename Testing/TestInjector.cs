@@ -22,7 +22,7 @@ namespace Kott.Scopes.Testing
     public sealed class TestInjector
     {
         private readonly Dictionary<Type, object> _contracts = new();
-        private readonly Dictionary<string, GameObject> _sceneObjects = new();
+        private readonly Dictionary<string, List<GameObject>> _sceneObjects = new();
         private ILogger _logger;
 
         private TestInjector()
@@ -59,8 +59,11 @@ namespace Kott.Scopes.Testing
             return this;
         }
 
-        /// <summary>Provides <paramref name="sceneObject" /> for <see cref="InjectSceneAttribute" /> fields with <paramref name="key" />.</summary>
-        /// <exception cref="InvalidOperationException"><paramref name="key" /> was already added.</exception>
+        /// <summary>
+        ///     Provides <paramref name="sceneObject" /> for <see cref="InjectSceneAttribute" /> fields with
+        ///     <paramref name="key" />. Adding several objects under one key works like several <see cref="SceneLink" />s
+        ///     sharing it: collection fields get all of them in the order added, single-object fields fail.
+        /// </summary>
         public TestInjector AddSceneObject(string key, GameObject sceneObject)
         {
             if (string.IsNullOrEmpty(key))
@@ -73,10 +76,13 @@ namespace Kott.Scopes.Testing
                 throw new ArgumentNullException(nameof(sceneObject));
             }
 
-            if (!_sceneObjects.TryAdd(key, sceneObject))
+            if (!_sceneObjects.TryGetValue(key, out List<GameObject> sameKey))
             {
-                throw new InvalidOperationException($"Scene object '{key}' was already added.");
+                sameKey = new List<GameObject>();
+                _sceneObjects.Add(key, sameKey);
             }
+
+            sameKey.Add(sceneObject);
 
             return this;
         }
@@ -106,8 +112,8 @@ namespace Kott.Scopes.Testing
 
             Injector.Inject(target, type => _contracts.TryGetValue(type, out object instance) ? instance : null,
                 "the TestInjector");
-            Injector.InjectScene(target, key => _sceneObjects.TryGetValue(key, out GameObject sceneObject)
-                ? sceneObject
+            Injector.InjectScene(target, key => _sceneObjects.TryGetValue(key, out List<GameObject> sceneObjects)
+                ? sceneObjects
                 : null, "the TestInjector");
 
             if (target is Manager manager)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -68,7 +69,8 @@ namespace Kott.Scopes
 
                     if (field.GetCustomAttribute<InjectSceneAttribute>() is { } injectScene)
                     {
-                        sceneFields.Add(new InjectedSceneField(field, injectScene.Key, injectScene.Optional));
+                        sceneFields.Add(new InjectedSceneField(field, injectScene.Key, injectScene.Optional,
+                            GetCollectionElementType(field.FieldType)));
                     }
                 }
             }
@@ -100,10 +102,36 @@ namespace Kott.Scopes
                 return "the [InjectScene] key is empty.";
             }
 
+            if (field.IsCollection)
+            {
+                return IsSceneObjectType(field.ElementType)
+                    ? null
+                    : $"'{field.ElementType.Name}' cannot come from a scene object. Use an array or List of " +
+                      "GameObject, a component type or an interface.";
+            }
+
             Type type = field.Field.FieldType;
-            return type == typeof(GameObject) || typeof(Component).IsAssignableFrom(type) || type.IsInterface
+            return IsSceneObjectType(type)
                 ? null
                 : $"'{type.Name}' cannot come from a scene object. Use GameObject, a component type or an interface.";
+        }
+
+        /// <summary>The element type of a collection field type (<c>T[]</c> or <c>List&lt;T&gt;</c>), or <c>null</c>.</summary>
+        internal static Type GetCollectionElementType(Type type)
+        {
+            if (type.IsArray)
+            {
+                return type.GetArrayRank() == 1 ? type.GetElementType() : null;
+            }
+
+            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>)
+                ? type.GetGenericArguments()[0]
+                : null;
+        }
+
+        private static bool IsSceneObjectType(Type type)
+        {
+            return type == typeof(GameObject) || typeof(Component).IsAssignableFrom(type) || type.IsInterface;
         }
 
         /// <summary>
@@ -167,10 +195,17 @@ namespace Kott.Scopes
 
         /// <summary>Fills the <see cref="InjectSceneAttribute" /> fields of <paramref name="target" />, all or none.</summary>
         /// <param name="target">The manager to inject.</param>
-        /// <param name="findLink">Returns the GameObject of the <see cref="SceneLink" /> with a key, or <c>null</c>.</param>
+        /// <param name="findLinks">
+        ///     Returns the GameObjects of all <see cref="SceneLink" />s with a key, in scene order; empty or
+        ///     <c>null</c> for none.
+        /// </param>
         /// <param name="source">The scene, for messages ("the scene of scope 'Board'").</param>
-        /// <exception cref="InvalidOperationException">A required link or component is missing, or a field type is unsupported.</exception>
-        public static void InjectScene(object target, Func<string, GameObject> findLink, string source)
+        /// <exception cref="InvalidOperationException">
+        ///     A required link or component is missing, several links share the key of a single-object field, or a
+        ///     field type is unsupported.
+        /// </exception>
+        public static void InjectScene(object target, Func<string, IReadOnlyList<GameObject>> findLinks,
+            string source)
         {
             InjectionInfo info = GetInfo(target.GetType());
             if (info.SceneFields.Count == 0)
@@ -183,31 +218,13 @@ namespace Kott.Scopes
             for (int i = 0; i < info.SceneFields.Count; i++)
             {
                 InjectedSceneField field = info.SceneFields[i];
-                Type type = field.Field.FieldType;
                 string problem = GetFieldProblem(field);
                 if (problem == null)
                 {
-                    GameObject linked = findLink(field.Key);
-                    if (linked == null)
-                    {
-                        problem = field.Optional ? null : $"no SceneLink with key '{field.Key}' in {source}.";
-                    }
-                    else if (type == typeof(GameObject))
-                    {
-                        values[i] = linked;
-                    }
-                    else
-                    {
-                        Component component = linked.GetComponent(type);
-                        if (component != null)
-                        {
-                            values[i] = component;
-                        }
-                        else if (!field.Optional)
-                        {
-                            problem = $"SceneLink '{field.Key}' ({linked.name}) has no {type.Name} component.";
-                        }
-                    }
+                    IReadOnlyList<GameObject> linked = findLinks(field.Key) ?? Array.Empty<GameObject>();
+                    problem = field.IsCollection
+                        ? ResolveCollection(field, linked, source, out values[i])
+                        : ResolveSingle(field, linked, source, out values[i]);
                 }
 
                 if (problem != null)
@@ -226,6 +243,103 @@ namespace Kott.Scopes
             {
                 info.SceneFields[i].Field.SetValue(target, values[i]);
             }
+        }
+
+        /// <summary>
+        ///     Like <see cref="InjectScene(object, Func{string, IReadOnlyList{GameObject}}, string)" />, with at most
+        ///     one link per key.
+        /// </summary>
+        public static void InjectScene(object target, Func<string, GameObject> findLink, string source)
+        {
+            InjectScene(target, key => findLink(key) is { } linked ? new[] { linked } : null, source);
+        }
+
+        private static string ResolveSingle(InjectedSceneField field, IReadOnlyList<GameObject> linked, string source,
+            out object value)
+        {
+            value = null;
+            if (linked.Count == 0)
+            {
+                return field.Optional ? null : $"no SceneLink with key '{field.Key}' in {source}.";
+            }
+
+            if (linked.Count > 1)
+            {
+                return $"{linked.Count} SceneLinks share the key '{field.Key}' in {source}, but the field takes one. " +
+                       "Use an array or List field to get all of them, or make the keys unique.";
+            }
+
+            Type type = field.Field.FieldType;
+            if (type == typeof(GameObject))
+            {
+                value = linked[0];
+                return null;
+            }
+
+            Component component = linked[0].GetComponent(type);
+            if (component != null)
+            {
+                value = component;
+                return null;
+            }
+
+            return field.Optional ? null : $"SceneLink '{field.Key}' ({linked[0].name}) has no {type.Name} component.";
+        }
+
+        private static string ResolveCollection(InjectedSceneField field, IReadOnlyList<GameObject> linked,
+            string source, out object value)
+        {
+            value = null;
+            if (linked.Count == 0 && !field.Optional)
+            {
+                return $"no SceneLink with key '{field.Key}' in {source}.";
+            }
+
+            Type element = field.ElementType;
+            List<object> items = new(linked.Count);
+            foreach (GameObject gameObject in linked)
+            {
+                if (element == typeof(GameObject))
+                {
+                    items.Add(gameObject);
+                    continue;
+                }
+
+                Component component = gameObject.GetComponent(element);
+                if (component != null)
+                {
+                    items.Add(component);
+                }
+                else if (!field.Optional)
+                {
+                    return $"SceneLink '{field.Key}' ({gameObject.name}) has no {element.Name} component.";
+                }
+            }
+
+            value = CreateCollection(field.Field.FieldType, element, items);
+            return null;
+        }
+
+        private static object CreateCollection(Type collectionType, Type element, List<object> items)
+        {
+            if (collectionType.IsArray)
+            {
+                Array array = Array.CreateInstance(element, items.Count);
+                for (int i = 0; i < items.Count; i++)
+                {
+                    array.SetValue(items[i], i);
+                }
+
+                return array;
+            }
+
+            IList list = (IList)Activator.CreateInstance(collectionType, items.Count);
+            foreach (object item in items)
+            {
+                list.Add(item);
+            }
+
+            return list;
         }
 
         /// <summary>Sets the <see cref="InjectAttribute" /> fields of <paramref name="target" /> to <c>null</c>.</summary>
@@ -281,11 +395,18 @@ namespace Kott.Scopes
         public readonly string Key;
         public readonly bool Optional;
 
-        public InjectedSceneField(FieldInfo field, string key, bool optional)
+        /// <summary>The element type of a <c>T[]</c> or <c>List&lt;T&gt;</c> field; <c>null</c> for a single-object field.</summary>
+        public readonly Type ElementType;
+
+        public InjectedSceneField(FieldInfo field, string key, bool optional, Type elementType = null)
         {
             Field = field;
             Key = key;
             Optional = optional;
+            ElementType = elementType;
         }
+
+        /// <summary>Whether the field takes the objects of all links with its key.</summary>
+        public bool IsCollection => ElementType != null;
     }
 }

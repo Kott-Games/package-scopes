@@ -514,19 +514,54 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
-        public void ValidateSceneContent_DuplicateLinkKeyInChildren_ErrorNamesKeyAndObjects()
+        public void ValidateSceneContent_SharedLinkKeyNoSingleField_NoIssues()
         {
             GameObject root = CreateGameObject("Root");
             root.AddComponent<SceneRoot>();
             AddLink(CreateGameObject("A", root), "door");
             AddLink(CreateGameObject("B", CreateGameObject("Nested", root)), "door");
 
-            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root })
-                .Single();
+            Assert.That(ScopeValidator.ValidateSceneContent(CreateDefinition("S"), "Level", new[] { root }),
+                Is.Empty);
+        }
+
+        [Test]
+        public void ValidateSceneContent_SharedKeyOfSingleField_ErrorNamesFieldAndObjects()
+        {
+            GameObject root = CreateGameObject("Root");
+            root.AddComponent<SceneRoot>();
+            AddLink(CreateGameObject("A", root), "door");
+            AddLink(CreateGameObject("B", CreateGameObject("Nested", root)), "door");
+            GameObject spawn = CreateGameObject("Spawn", root);
+            spawn.AddComponent<BoxCollider>();
+            AddLink(spawn, "spawn");
+
+            ScopeIssue issue = ScopeValidator.ValidateSceneContent(CreateDefinition("S", new SceneConsumer()),
+                "Level", new[] { root }).Single();
 
             Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.DuplicateSceneLinkKey));
-            Assert.That(issue.Message,
-                Does.StartWith("Duplicate SceneLink key 'door' in scene 'Level': on 'A' and 'B'."));
+            Assert.That(issue.Message, Does.StartWith(
+                "SceneConsumer.Door takes one object, but 2 SceneLinks in scene 'Level' share the key 'door' " +
+                "('A', 'B')."));
+        }
+
+        [Test]
+        public void ValidateSceneContent_SharedKeyOfCollectionField_ChecksEveryLinksComponent()
+        {
+            GameObject root = CreateGameObject("Root");
+            root.AddComponent<SceneRoot>();
+            GameObject first = CreateGameObject("First", root);
+            first.AddComponent<BoxCollider>();
+            AddLink(first, "spawn");
+            AddLink(CreateGameObject("Second", root), "spawn");
+
+            ScopeIssue issue = ScopeValidator
+                .ValidateSceneContent(CreateDefinition("S", new SceneCollectionConsumer()), "Level", new[] { root })
+                .Single();
+
+            Assert.That(issue.Kind, Is.EqualTo(ScopeIssueKind.MissingSceneLinkComponent));
+            Assert.That(issue.Message, Does.StartWith(
+                "SceneCollectionConsumer.Spawns needs a BoxCollider on SceneLink 'spawn' ('Second' in scene 'Level')"));
         }
 
         [Test]
