@@ -100,6 +100,30 @@ namespace Kott.Scopes.Tests
         }
 
         [Test]
+        public void Inject_SceneObjectsSharingAKey_FillCollectionFieldsInOrder()
+        {
+            GameObject first = new("First");
+            GameObject second = new("Second");
+            BoxCollider firstCollider = first.AddComponent<BoxCollider>();
+            BoxCollider secondCollider = second.AddComponent<BoxCollider>();
+            try
+            {
+                SceneCollectionConsumer target = TestInjector.Create()
+                    .AddSceneObject("spawn", first)
+                    .AddSceneObject("spawn", second)
+                    .Inject(new SceneCollectionConsumer());
+
+                Assert.That(target.Spawns, Is.EqualTo(new[] { firstCollider, secondCollider }));
+                Assert.That(target.SpawnObjects, Is.EqualTo(new[] { first, second }));
+            }
+            finally
+            {
+                Object.DestroyImmediate(first);
+                Object.DestroyImmediate(second);
+            }
+        }
+
+        [Test]
         public void Inject_NonManagerWithSceneFields_ThrowsLikeAScope()
         {
             // regression: TestInjector filled [InjectScene] fields a loaded scope rejects

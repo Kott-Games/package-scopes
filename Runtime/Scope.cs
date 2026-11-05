@@ -19,7 +19,7 @@ namespace Kott.Scopes
     public sealed class Scope
     {
         private readonly List<Scope> _children = new();
-        private readonly Dictionary<string, SceneLink> _sceneLinks = new();
+        private readonly Dictionary<string, List<SceneLink>> _sceneLinks = new();
         private readonly Dictionary<Type, Manager> _contracts = new();
         private readonly List<MonoBehaviour> _componentBuffer = new();
         private readonly ScopeRootBehaviour _driver;
@@ -184,8 +184,33 @@ namespace Kott.Scopes
             }
         }
 
+        /// <summary>
+        ///     Returns the GameObjects of all <see cref="SceneLink" />s with <paramref name="key" /> in this scope's
+        ///     scene, in scene hierarchy order. Empty if there is none.
+        /// </summary>
+        public IReadOnlyList<GameObject> GetSceneGameObjects(string key)
+        {
+            if (key == null || !_sceneLinks.TryGetValue(key, out List<SceneLink> links))
+            {
+                return Array.Empty<GameObject>();
+            }
+
+            List<GameObject> gameObjects = new(links.Count);
+            foreach (SceneLink link in links)
+            {
+                // destroyed since the scene was bound
+                if (link != null)
+                {
+                    gameObjects.Add(link.gameObject);
+                }
+            }
+
+            return gameObjects;
+        }
+
         /// <summary>Returns the GameObject of the <see cref="SceneLink" /> with <paramref name="key" /> in this scope's scene.</summary>
         /// <exception cref="KeyNotFoundException">No link with that key exists.</exception>
+        /// <exception cref="InvalidOperationException">Several links share the key; use <see cref="GetSceneGameObjects" />.</exception>
         public GameObject GetSceneGameObject(string key)
         {
             if (TryGetSceneGameObject(key, out GameObject gameObject))
@@ -199,11 +224,20 @@ namespace Kott.Scopes
         }
 
         /// <summary>Gets the GameObject of the <see cref="SceneLink" /> with <paramref name="key" /> if it exists.</summary>
+        /// <exception cref="InvalidOperationException">Several links share the key; use <see cref="GetSceneGameObjects" />.</exception>
         public bool TryGetSceneGameObject(string key, out GameObject gameObject)
         {
-            if (key != null && _sceneLinks.TryGetValue(key, out SceneLink link) && link != null)
+            IReadOnlyList<GameObject> gameObjects = GetSceneGameObjects(key);
+            if (gameObjects.Count > 1)
             {
-                gameObject = link.gameObject;
+                throw new InvalidOperationException(
+                    $"{gameObjects.Count} SceneLinks share the key '{key}' in the scene of {this}. Use " +
+                    "GetSceneGameObjects to get all of them.");
+            }
+
+            if (gameObjects.Count == 1)
+            {
+                gameObject = gameObjects[0];
                 return true;
             }
 
@@ -213,7 +247,9 @@ namespace Kott.Scopes
 
         /// <summary>Returns component <typeparamref name="T" /> of the <see cref="SceneLink" /> with <paramref name="key" />.</summary>
         /// <exception cref="KeyNotFoundException">No link with that key exists.</exception>
-        /// <exception cref="InvalidOperationException">The linked GameObject has no <typeparamref name="T" />.</exception>
+        /// <exception cref="InvalidOperationException">
+        ///     The linked GameObject has no <typeparamref name="T" />, or several links share the key.
+        /// </exception>
         public T GetSceneComponent<T>(string key)
         {
             GameObject gameObject = GetSceneGameObject(key);
@@ -381,24 +417,23 @@ namespace Kott.Scopes
                         continue;
                     }
 
-                    if (_sceneLinks.TryGetValue(link.Key, out SceneLink existing))
+                    if (!_sceneLinks.TryGetValue(link.Key, out List<SceneLink> sameKey))
                     {
-                        throw new InvalidOperationException(
-                            $"Duplicate SceneLink key '{link.Key}' in the scene of {this}: on '{existing.name}' and '{link.name}'.");
+                        sameKey = new List<SceneLink>(1);
+                        _sceneLinks.Add(link.Key, sameKey);
                     }
 
-                    _sceneLinks.Add(link.Key, link);
+                    sameKey.Add(link);
                 }
             }
 
             List<string> problems = new();
-            Func<string, GameObject> findLink = key =>
-                TryGetSceneGameObject(key, out GameObject linked) ? linked : null;
+            Func<string, IReadOnlyList<GameObject>> findLinks = GetSceneGameObjects;
             foreach (Manager manager in _managers)
             {
                 try
                 {
-                    Injector.InjectScene(manager, findLink, $"the scene of {this}");
+                    Injector.InjectScene(manager, findLinks, $"the scene of {this}");
                 }
                 catch (InvalidOperationException exception)
                 {

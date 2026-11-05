@@ -13,8 +13,8 @@ namespace Kott.Scopes
     ///     Checks scope definitions for authoring mistakes: unresolved or empty managers, injected contracts that are
     ///     not provided (or provided twice) along the declared parents, invalid injected fields, dependency cycles,
     ///     declared-parent cycles, scenes that are missing, unregistered with their loader, without a
-    ///     <see cref="SceneRoot" />, with duplicate <see cref="SceneLink" /> keys, or without the links
-    ///     <see cref="InjectSceneAttribute" /> fields need.
+    ///     <see cref="SceneRoot" />, without the links <see cref="InjectSceneAttribute" /> fields need, or with
+    ///     several links sharing the key of a single-object field.
     /// </summary>
     /// <remarks>
     ///     Used by the definition inspector and <c>Tools &gt; Scopes &gt; Validate All</c>; call it from tests or CI
@@ -144,25 +144,23 @@ namespace Kott.Scopes
                     "is used. Remove the others.", context));
             }
 
-            Dictionary<string, SceneLink> linksByKey = new();
+            Dictionary<string, List<SceneLink>> linksByKey = new();
             foreach (SceneLink link in links)
             {
                 if (string.IsNullOrEmpty(link.Key))
                 {
                     issues.Add(new ScopeIssue(definition, ScopeIssueKind.EmptySceneLinkKey, ScopeIssueSeverity.Warning,
                         $"The SceneLink on '{link.name}' in scene '{sceneName}' has no key and is ignored.", context));
+                    continue;
                 }
-                else if (linksByKey.TryGetValue(link.Key, out SceneLink existing))
+
+                if (!linksByKey.TryGetValue(link.Key, out List<SceneLink> sameKey))
                 {
-                    issues.Add(new ScopeIssue(definition, ScopeIssueKind.DuplicateSceneLinkKey,
-                        ScopeIssueSeverity.Error,
-                        $"Duplicate SceneLink key '{link.Key}' in scene '{sceneName}': on '{existing.name}' and " +
-                        $"'{link.name}'. Keys must be unique within a scene.", context));
+                    sameKey = new List<SceneLink>();
+                    linksByKey.Add(link.Key, sameKey);
                 }
-                else
-                {
-                    linksByKey.Add(link.Key, link);
-                }
+
+                sameKey.Add(link);
             }
 
             foreach (Manager manager in definition.Managers)
@@ -174,26 +172,50 @@ namespace Kott.Scopes
 
                 foreach (InjectedSceneField field in Injector.GetInfo(manager.GetType()).SceneFields)
                 {
-                    if (field.Optional || Injector.GetFieldProblem(field) != null)
+                    if (Injector.GetFieldProblem(field) != null)
                     {
                         continue;
                     }
 
                     string fieldName = $"{manager.GetType().Name}.{field.Field.Name}";
-                    Type type = field.Field.FieldType;
-                    if (!linksByKey.TryGetValue(field.Key, out SceneLink link))
+                    if (!linksByKey.TryGetValue(field.Key, out List<SceneLink> sameKey))
                     {
-                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLink,
-                            ScopeIssueSeverity.Error,
-                            $"{fieldName} needs the SceneLink '{field.Key}', which scene '{sceneName}' does not have. " +
-                            "Add a SceneLink with that key, or mark the field Optional.", context));
+                        if (!field.Optional)
+                        {
+                            issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLink,
+                                ScopeIssueSeverity.Error,
+                                $"{fieldName} needs the SceneLink '{field.Key}', which scene '{sceneName}' does not " +
+                                "have. Add a SceneLink with that key, or mark the field Optional.", context));
+                        }
+
+                        continue;
                     }
-                    else if (type != typeof(GameObject) && link.GetComponent(type) == null)
+
+                    if (!field.IsCollection && sameKey.Count > 1)
                     {
-                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLinkComponent,
+                        issues.Add(new ScopeIssue(definition, ScopeIssueKind.DuplicateSceneLinkKey,
                             ScopeIssueSeverity.Error,
-                            $"{fieldName} needs a {type.Name} on SceneLink '{field.Key}' ('{link.name}' in scene " +
-                            $"'{sceneName}'), which it does not have.", context));
+                            $"{fieldName} takes one object, but {sameKey.Count} SceneLinks in scene '{sceneName}' " +
+                            $"share the key '{field.Key}' ({string.Join(", ", sameKey.ConvertAll(l => $"'{l.name}'"))}). " +
+                            "Make the keys unique, or make the field an array or List.", context));
+                        continue;
+                    }
+
+                    if (field.Optional)
+                    {
+                        continue;
+                    }
+
+                    Type type = field.ElementType ?? field.Field.FieldType;
+                    foreach (SceneLink link in sameKey)
+                    {
+                        if (type != typeof(GameObject) && link.GetComponent(type) == null)
+                        {
+                            issues.Add(new ScopeIssue(definition, ScopeIssueKind.MissingSceneLinkComponent,
+                                ScopeIssueSeverity.Error,
+                                $"{fieldName} needs a {type.Name} on SceneLink '{field.Key}' ('{link.name}' in scene " +
+                                $"'{sceneName}'), which it does not have.", context));
+                        }
                     }
                 }
             }

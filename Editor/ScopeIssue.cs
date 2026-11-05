@@ -57,7 +57,10 @@ namespace Kott.Scopes
         /// <summary>The scene has more than one <see cref="SceneRoot" />.</summary>
         MultipleSceneRoots,
 
-        /// <summary>Two <see cref="SceneLink" />s in the scene share a key.</summary>
+        /// <summary>
+        ///     Several <see cref="SceneLink" />s in the scene share the key of a single-object
+        ///     <see cref="InjectSceneAttribute" /> field. Shared keys are fine for array and <c>List</c> fields.
+        /// </summary>
         DuplicateSceneLinkKey,
 
         /// <summary>A <see cref="SceneLink" /> has no key.</summary>
